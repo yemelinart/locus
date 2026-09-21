@@ -1,3 +1,4 @@
+import { t } from "../i18n";
 import { useEffect, useId, useRef, type ReactNode } from "react";
 import { X } from "lucide-react";
 import type { Budget } from "../types";
@@ -50,9 +51,9 @@ export function Modal({
       if (e.key !== "Tab") return;
       const focusables = [
         ...el.querySelectorAll<HTMLElement>(
-          "button:not(:disabled),input:not(:disabled),select,textarea,a[href]",
+          "button:not(:disabled),input:not(:disabled),select:not(:disabled),textarea:not(:disabled),a[href],summary",
         ),
-      ];
+      ].filter((item) => item.getClientRects().length > 0);
       const first = focusables[0],
         last = focusables.at(-1);
       if (e.shiftKey && document.activeElement === first) {
@@ -91,7 +92,11 @@ export function Modal({
             <h2 id={titleId}>{title}</h2>
             {subtitle && <p>{subtitle}</p>}
           </div>
-          <button className="icon-button" onClick={close} aria-label="Закрыть">
+          <button
+            className="icon-button"
+            onClick={close}
+            aria-label={t("Закрыть")}
+          >
             <X size={20} />
           </button>
         </div>
@@ -112,10 +117,10 @@ export function BudgetFields({
     <div className="grid four budget-fields">
       {(
         [
-          ["minutes", "Время, мин", 43200],
-          ["queries", "Запросы", 100000],
-          ["pages", "Страницы", 100000],
-          ["rounds", "Этапы", 10000],
+          ["minutes", t("Время, мин"), 43200],
+          ["queries", t("Запросы"), 100000],
+          ["pages", t("Страницы"), 100000],
+          ["rounds", t("Этапы"), 10000],
         ] as const
       ).map(([key, label, max]) => (
         <Field key={key} label={label}>

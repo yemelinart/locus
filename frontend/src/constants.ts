@@ -1,3 +1,4 @@
+import { t, locale } from "./i18n";
 export const languages = [
   ["ru", "Русский"],
   ["en", "English"],
@@ -12,13 +13,16 @@ export const languages = [
   ["zh", "中文"],
   ["ja", "日本語"],
 ];
-export const statusName: Record<string, string> = {
+const statuses: Record<string, string> = {
   draft: "Готов к запуску",
   queued: "В очереди",
   running: "Идёт поиск",
   paused: "На паузе",
   completed: "Завершён",
 };
+export const statusName = new Proxy(statuses, {
+  get: (target, key: string) => t(target[key] || key),
+});
 export const split = (v: string) =>
   v
     .split(/[,\n]/)
@@ -26,10 +30,10 @@ export const split = (v: string) =>
     .filter(Boolean);
 export const duration = (seconds: number) =>
   seconds < 60
-    ? `${Math.floor(seconds)} сек`
-    : `${Math.floor(seconds / 60)} мин`;
+    ? `${Math.floor(seconds)} ${t("сек")}`
+    : `${Math.floor(seconds / 60)} ${t("мин")}`;
 export const date = (value: string) =>
-  new Date(value).toLocaleDateString("ru-RU", {
+  new Date(value).toLocaleDateString(locale(), {
     day: "numeric",
     month: "short",
   });

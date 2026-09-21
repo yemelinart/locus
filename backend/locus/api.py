@@ -1,17 +1,22 @@
+import asyncio
 import os
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import Literal
 from urllib.parse import urlsplit
 
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
+from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, Response
 from fastapi.staticfiles import StaticFiles
+from starlette.concurrency import run_in_threadpool
 
-from . import __version__
+from . import __version__, reports
 from .db import Store, dump
 from .engine import Engine, friendly_error
-from .models import Brief, Budget, Refinement, Review, Settings
+from .models import Brief, Budget, Query, Refinement, Review, Settings
+from .names import variants
 from .providers.local_model import LocalModel
+from .providers.search import Search, catalog
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -96,9 +101,64 @@ def create_app(data_dir: Path | None = None, run_worker: bool = True) -> FastAPI
     @app.post("/api/models/probe")
     async def probe_models(settings: Settings):
         try:
-            return {"connected": True, "models": await LocalModel(settings).models(), "error": ""}
+            model = LocalModel(settings)
+            ids = await model.models()
+            capabilities, capability_error = [], ""
+            try:
+                capabilities = await model.capabilities()
+            except Exception:
+                capability_error = "Model capability discovery is unavailable on this server. Standard local chat remains available."
+            return {
+                "connected": True,
+                "models": ids,
+                "error": "",
+                "capabilities": capabilities,
+                "capability_error": capability_error,
+            }
         except Exception as exc:
             return {"connected": False, "models": [], "error": friendly_error(exc)}
+
+    @app.post("/api/names/preview")
+    async def name_preview(brief: Brief):
+        return {"variants": variants(brief)}
+
+    @app.get("/api/search/catalog")
+    async def search_catalog():
+        return catalog()
+
+    @app.post("/api/search/probe")
+    async def search_probe(settings: Settings):
+        engines = (
+            ["searxng"]
+            if settings.search_provider == "searxng"
+            else list(dict.fromkeys(settings.search_backends))
+        )
+        installed = {e["id"] for e in catalog() if e["available"]}
+        gate = asyncio.Semaphore(2)
+
+        async def check(engine):
+            if engine != "searxng" and engine not in installed:
+                return {"engine": engine, "status": "unavailable", "error": "Adapter is not installed"}
+            async with gate:
+                search = Search(
+                    settings.model_copy(
+                        update={
+                            "search_backends": [engine] if engine != "searxng" else settings.search_backends,
+                            "results_per_query": 1,
+                            "request_timeout": 8,
+                        }
+                    )
+                )
+                try:
+                    await search.search(
+                        Query(query="Python programming language official", language="en"),
+                        Brief(name="Connection test"),
+                    )
+                except Exception:
+                    pass
+                return search.last_audit[-1] if search.last_audit else {"engine": engine, "status": "failed"}
+
+        return await asyncio.gather(*(check(e) for e in engines))
 
     @app.get("/api/jobs")
     async def jobs():
@@ -174,46 +234,26 @@ def create_app(data_dir: Path | None = None, run_worker: bool = True) -> FastAPI
         )
         return {"ok": True}
 
+    @app.get("/api/jobs/{job_id}/analysis")
+    async def job_analysis(job_id: str):
+        return reports.analysis(store.detail(job_id))
+
     @app.get("/api/jobs/{job_id}/export")
-    async def export(job_id: str, format: str = "md"):
+    async def export(
+        job_id: str, format: Literal["md", "json", "pdf"] = "md", lang: Literal["en", "ru"] = "en"
+    ):
         detail = store.detail(job_id)
+        headers = {"Content-Disposition": f'attachment; filename="locus-{job_id}.{format}"'}
         if format == "json":
             return PlainTextResponse(
-                dump(detail),
+                dump(detail | {"analysis": reports.analysis(detail)}),
                 media_type="application/json",
-                headers={"Content-Disposition": f'attachment; filename="locus-{job_id}.json"'},
+                headers=headers,
             )
-        source_map = {s["id"]: s for s in detail["sources"]}
-        lines = [
-            f"# Locus — {detail['name']}",
-            "",
-            "Исследование публичных источников. Совпадения требуют проверки человеком.",
-            "Наличие цитаты не доказывает личность или истинность утверждения.",
-            "",
-            f"Статус: {detail['status']}. {detail['reason']}",
-            "",
-        ]
-        for candidate in detail["candidates"]:
-            value = candidate["value"]
-            source = source_map[candidate["source_id"]]
-            lines += [
-                f"## {value['name']}",
-                value["description"],
-                f"Оценка пользователя: {candidate['status']}",
-                "",
-            ]
-            for fact in value["facts"]:
-                lines += [f"- {fact['statement']}", f"> {fact['quote']}", ""]
-            lines += [f"Источник: {source['url']}", f"Проверен: {source['fetched_at']}", ""]
-        lines += [
-            "## Проверенные адреса",
-            *[f"- {s['url']} — {s['status']} {s['error']}" for s in detail["sources"]],
-        ]
-        return PlainTextResponse(
-            "\n".join(lines),
-            media_type="text/markdown",
-            headers={"Content-Disposition": f'attachment; filename="locus-{job_id}.md"'},
-        )
+        if format == "pdf":
+            content = await run_in_threadpool(reports.pdf, detail, lang)
+            return Response(content, media_type="application/pdf", headers=headers)
+        return PlainTextResponse(reports.markdown(detail, lang), media_type="text/markdown", headers=headers)
 
     @app.delete("/api/jobs/{job_id}")
     async def delete(job_id: str):

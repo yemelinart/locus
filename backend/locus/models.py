@@ -37,11 +37,20 @@ class Settings(Model):
     context_chars: int = Field(default=16000, ge=2000, le=64000)
     model_timeout: int = Field(default=180, ge=15, le=1800)
     structured_output: bool = False
-    inference_mode: Literal["chat", "qwen_no_thinking"] = "chat"
+    inference_mode: Literal["chat", "qwen_no_thinking", "lmstudio"] = "chat"
+    reasoning: str = Field(default="default", max_length=24, pattern=r"^[a-z_]+$")
+    response_language: Literal["en", "ru"] = "en"
+    top_k: int = Field(default=40, ge=1, le=1000)
+    min_p: float = Field(default=0.05, ge=0, le=1)
+    repeat_penalty: float = Field(default=1.0, ge=1, le=2)
+    safesearch: Literal["on", "moderate", "off"] = "moderate"
+    search_region: str = Field(default="auto", pattern=r"^(auto|wt-wt|[a-z]{2}-[a-z]{2})$")
     search_provider: Literal["direct", "searxng"] = "direct"
-    search_backends: list[Literal["duckduckgo", "bing", "brave", "mojeek", "yahoo"]] = Field(
-        default_factory=lambda: ["bing", "duckduckgo"], min_length=1, max_length=5
-    )
+    search_backends: list[
+        Literal[
+            "duckduckgo", "bing", "brave", "mojeek", "yahoo", "google", "yandex", "wikipedia", "startpage"
+        ]
+    ] = Field(default_factory=lambda: ["duckduckgo", "brave"], min_length=1, max_length=9)
     searxng_url: str = "http://127.0.0.1:8080"
     request_timeout: int = Field(default=20, ge=5, le=90)
     results_per_query: int = Field(default=8, ge=1, le=30)
@@ -58,6 +67,8 @@ class Settings(Model):
                 raise ValueError(
                     "JSON Schema доступен в стандартном режиме; проверка ответа работает в обоих"
                 )
+        if self.inference_mode == "lmstudio" and self.structured_output:
+            raise ValueError("JSON Schema is only available in chat mode")
         return self
 
 
@@ -71,13 +82,17 @@ class Budget(Model):
 class Brief(Model):
     name: str = Field(min_length=2, max_length=160)
     aliases: list[str] = Field(default_factory=list, max_length=15)
+    expand_names: bool = True
+    surname_change: Literal["unknown", "possible", "known"] = "unknown"
+    previous_names: list[str] = Field(default_factory=list, max_length=15)
+    output_language: Literal["en", "ru"] = "en"
     city: str = Field(default="", max_length=120)
     country: str = Field(default="", max_length=120)
     year_from: int | None = Field(default=None, ge=1850, le=2100)
     year_to: int | None = Field(default=None, ge=1850, le=2100)
     context: str = Field(default="", max_length=6000)
     languages: list[Literal["ru", "en", "uk", "de", "fr", "es", "it", "pt", "tr", "pl", "zh", "ja"]] = Field(
-        default_factory=lambda: ["ru", "en"], min_length=1, max_length=12
+        default_factory=lambda: ["en", "ru", "uk"], min_length=1, max_length=12
     )
     include_domains: list[str] = Field(default_factory=list, max_length=25)
     exclude_domains: list[str] = Field(default_factory=list, max_length=25)
@@ -93,7 +108,7 @@ class Brief(Model):
             raise ValueError("Введите имя")
         return value
 
-    @field_validator("aliases")
+    @field_validator("aliases", "previous_names")
     @classmethod
     def trim_aliases(cls, values: list[str]) -> list[str]:
         if any(len(v) > 160 for v in values):

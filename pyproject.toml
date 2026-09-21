@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "locus-local"
-version = "0.1.0"
+version = "0.2.0"
 description = "Local-first, evidence-led public profile research. No cloud AI."
 requires-python = ">=3.11,<3.15"
 license = "MIT"
@@ -16,10 +16,11 @@ dependencies = [
   "beautifulsoup4>=4.13,<5",
   "pydantic>=2.11,<3",
   "ddgs==9.13.0",
+  "reportlab>=4.4,<5",
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8.3,<10", "pytest-asyncio>=1,<2", "ruff>=0.11,<1"]
+dev = ["pypdf>=6,<7", "pytest>=8.3,<10", "pytest-asyncio>=1,<2", "ruff>=0.11,<1"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["backend/locus"]

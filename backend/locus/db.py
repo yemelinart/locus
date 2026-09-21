@@ -25,8 +25,14 @@ class Store:
         path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
         self.path = path
         with self.connect() as c:
-            if c.execute("PRAGMA user_version").fetchone()[0] > 1:
+            if c.execute("PRAGMA user_version").fetchone()[0] > 2:
                 raise RuntimeError("Database was created by a newer version of Locus")
+            if c.execute("PRAGMA user_version").fetchone()[0] == 1:
+                backup = path.with_suffix(".v1.backup.sqlite3")
+                if not backup.exists():
+                    with sqlite3.connect(backup) as target:
+                        c.backup(target)
+                    backup.chmod(0o600)
             c.executescript("""
                 PRAGMA journal_mode=WAL;
                 CREATE TABLE IF NOT EXISTS settings (id INTEGER PRIMARY KEY CHECK(id=1), value TEXT NOT NULL);
@@ -61,7 +67,13 @@ class Store:
                 );
                 CREATE INDEX IF NOT EXISTS tasks_job_state ON tasks(job_id,state);
                 CREATE INDEX IF NOT EXISTS events_job ON events(job_id,id);
-                PRAGMA user_version=1;
+                CREATE TABLE IF NOT EXISTS search_runs (
+                    id TEXT PRIMARY KEY, job_id TEXT NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
+                    task_id TEXT NOT NULL, engine TEXT NOT NULL, status TEXT NOT NULL,
+                    result_count INTEGER NOT NULL, seconds REAL NOT NULL, error TEXT NOT NULL,
+                    at TEXT NOT NULL
+                );
+                PRAGMA user_version=2;
             """)
             c.execute("INSERT OR IGNORE INTO settings VALUES(1,?)", (dump(Settings().model_dump()),))
         path.chmod(0o600)
@@ -103,7 +115,7 @@ class Store:
             if not row:
                 raise KeyError(job_id)
             result = dict(row)
-            result["brief"] = json.loads(result["brief"])
+            result["brief"] = Brief.model_validate_json(result["brief"]).model_dump()
             result["settings_snapshot"] = json.loads(result["settings_snapshot"])
             result["stats"] = {
                 "queries": c.execute(
@@ -199,7 +211,28 @@ class Store:
                     "SELECT * FROM tasks WHERE job_id=? AND kind='search' ORDER BY rowid", (job_id,)
                 )
             ]
+            result["search_runs"] = [
+                dict(r) for r in c.execute("SELECT * FROM search_runs WHERE job_id=? ORDER BY at", (job_id,))
+            ]
         return result
+
+    def record_search(self, job_id, task_id, attempts):
+        with self.connect() as c:
+            for a in attempts:
+                c.execute(
+                    "INSERT INTO search_runs VALUES(?,?,?,?,?,?,?,?,?)",
+                    (
+                        uid(),
+                        job_id,
+                        task_id,
+                        a["engine"],
+                        a["status"],
+                        a["result_count"],
+                        a["seconds"],
+                        a.get("error", ""),
+                        a["at"],
+                    ),
+                )
 
     def recover(self):
         with self.connect() as c:

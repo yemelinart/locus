@@ -7,6 +7,10 @@ export type Budget = {
 export type Brief = {
   name: string;
   aliases: string[];
+  expand_names: boolean;
+  surname_change: "unknown" | "possible" | "known";
+  previous_names: string[];
+  output_language: "en" | "ru";
   city: string;
   country: string;
   year_from: number | null;
@@ -28,7 +32,14 @@ export type Settings = {
   context_chars: number;
   model_timeout: number;
   structured_output: boolean;
-  inference_mode: "chat" | "qwen_no_thinking";
+  inference_mode: "chat" | "qwen_no_thinking" | "lmstudio";
+  reasoning: string;
+  response_language: "en" | "ru";
+  top_k: number;
+  min_p: number;
+  repeat_penalty: number;
+  safesearch: "on" | "moderate" | "off";
+  search_region: string;
   search_provider: "direct" | "searxng";
   search_backends: string[];
   searxng_url: string;
@@ -76,6 +87,7 @@ export type Job = {
   settings_snapshot: Partial<Settings>;
 };
 export type Detail = Job & {
+  search_runs: SearchRun[];
   sources: Source[];
   candidates: Candidate[];
   events: { id: number; at: string; level: string; message: string }[];
@@ -86,4 +98,63 @@ export type Detail = Job & {
     payload: { query: string; language: string; reason: string };
   }[];
 };
-export type Models = { connected: boolean; models: string[]; error: string };
+export type ModelCapability = {
+  key: string;
+  name: string;
+  instances: {
+    id: string;
+    config: { context_length?: number; parallel?: number };
+  }[];
+  max_context: number;
+  reasoning_options: string[];
+  reasoning_default: string | null;
+  architecture: string;
+};
+export type Models = {
+  connected: boolean;
+  models: string[];
+  error: string;
+  capabilities?: ModelCapability[];
+  capability_error?: string;
+};
+export type SearchEngine = {
+  id: string;
+  name: string;
+  available: boolean;
+  kind: string;
+};
+export type SearchRun = {
+  engine: string;
+  status: string;
+  result_count: number;
+  seconds: number;
+  at: string;
+  error: string;
+};
+export type NameVariant = { name: string; origin: string; reason: string };
+export type Analysis = {
+  domains: {
+    domain: string;
+    read: number;
+    unavailable: number;
+    candidates: number;
+    facts: number;
+  }[];
+  engines: {
+    engine: string;
+    attempts: number;
+    ok: number;
+    failed: number;
+    results: number;
+    seconds: number;
+  }[];
+  facts: number;
+  confirmed: number;
+  unreviewed: number;
+  rejected: number;
+  clues: string[];
+  contradictions: string[];
+  failed_sources: number;
+  pending_queries: number;
+  engine_coverage_known: boolean;
+};

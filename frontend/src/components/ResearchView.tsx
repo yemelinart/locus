@@ -1,3 +1,6 @@
+import { t, getPreferences, locale } from "../i18n";
+import AnalysisPanel from "./AnalysisPanel";
+import ReportDialog from "./ReportDialog";
 import { useState } from "react";
 import {
   ArrowDownToLine,
@@ -58,10 +61,10 @@ function CandidateCard({
         </div>
         <span className={`review-label ${candidate.status}`}>
           {candidate.status === "confirmed"
-            ? "Вы подтвердили"
+            ? t("Вы подтвердили")
             : candidate.status === "rejected"
-              ? "Отклонён"
-              : "Возможное совпадение"}
+              ? t("Отклонён")
+              : t("Возможное совпадение")}
         </span>
       </div>
       {v.matches.length > 0 && (
@@ -114,7 +117,7 @@ function CandidateCard({
             }
           >
             <Check size={15} />
-            Это он / она
+            {t("Это он / она")}
           </button>
           <button
             className={candidate.status === "rejected" ? "selected" : ""}
@@ -125,7 +128,7 @@ function CandidateCard({
             }
           >
             <X size={15} />
-            Другой человек
+            {t("Другой человек")}
           </button>
         </div>
       </div>
@@ -141,7 +144,9 @@ export default function ResearchView({
   editBudget,
   remove,
   pending,
+  initialTab = "candidates",
 }: {
+  initialTab?: string;
   job: Detail;
   action: (a: string) => void;
   review: (id: string, status: Candidate["status"]) => void;
@@ -150,7 +155,8 @@ export default function ResearchView({
   remove: () => void;
   pending: boolean;
 }) {
-  const [tab, setTab] = useState("candidates");
+  const [tab, setTab] = useState(initialTab);
+  const [reportOpen, setReportOpen] = useState(false);
   const [filter, setFilter] = useState("all");
   const [note, setNote] = useState("");
   const running = ["running", "queued"].includes(job.status);
@@ -164,23 +170,32 @@ export default function ResearchView({
   );
   return (
     <div className="research-view">
+      {reportOpen && (
+        <ReportDialog id={job.id} close={() => setReportOpen(false)} />
+      )}
       <div className="research-title">
         <div>
-          <div className="eyebrow">ИССЛЕДОВАНИЕ · {date(job.created_at)}</div>
+          <div className="eyebrow">
+            {t("ИССЛЕДОВАНИЕ ·")}
+            {date(job.created_at)}
+          </div>
           <h1>{job.name}</h1>
           <p>
             {[job.brief.city, job.brief.country].filter(Boolean).join(" · ") ||
-              "Публичные профили и упоминания"}
+              t("Публичные профили и упоминания")}
             <span className="title-languages">
               {job.brief.languages.map((l) => l.toUpperCase()).join(" / ")}
             </span>
           </p>
         </div>
         <div className="title-actions">
-          <a className="button secondary" href={`/api/jobs/${job.id}/export`}>
+          <button
+            className="button secondary"
+            onClick={() => setReportOpen(true)}
+          >
             <ArrowDownToLine size={16} />
-            Отчёт
-          </a>
+            {t("Отчёт")}
+          </button>
           <button
             disabled={pending}
             className={`button ${running ? "secondary" : "primary"}`}
@@ -194,27 +209,27 @@ export default function ResearchView({
               <Play size={16} />
             )}{" "}
             {running
-              ? "Пауза"
+              ? t("Пауза")
               : job.status === "draft"
-                ? "Начать поиск"
-                : "Продолжить"}
+                ? t("Начать поиск")
+                : t("Продолжить")}
           </button>
         </div>
       </div>
       <div className="metrics">
         {[
-          { label: "Запросов", value: job.stats.queries, icon: Search },
+          { label: t("Запросов"), value: job.stats.queries, icon: Search },
           {
-            label: "Источников прочитано",
+            label: t("Источников прочитано"),
             value: job.stats.sources,
             icon: Globe2,
           },
           {
-            label: "Возможных совпадений",
+            label: t("Возможных совпадений"),
             value: job.stats.candidates,
             icon: Users,
           },
-          { label: "Время работы", value: duration(elapsed), icon: Clock3 },
+          { label: t("Время работы"), value: duration(elapsed), icon: Clock3 },
         ].map((m) => (
           <div className="metric" key={m.label}>
             <m.icon size={17} />
@@ -238,8 +253,8 @@ export default function ResearchView({
             <strong>{statusName[job.status]}</strong>
             <p>
               {job.status === "running"
-                ? job.events[0]?.message || "Подготовка поиска…"
-                : job.reason}
+                ? t(job.events[0]?.message || "") || t("Подготовка поиска…")
+                : t(job.reason)}
             </p>
           </div>
           {running && <span className="live-indicator">LIVE</span>}
@@ -249,10 +264,11 @@ export default function ResearchView({
         <div className="results-column">
           <div className="tabs" role="tablist">
             {[
-              ["candidates", "Совпадения", job.candidates.length],
-              ["sources", "Источники", job.sources.length],
-              ["queries", "План", job.queries.length],
-              ["events", "Журнал", null],
+              ["candidates", t("Совпадения"), job.candidates.length],
+              ["sources", t("Источники"), job.sources.length],
+              ["queries", t("План"), job.queries.length],
+              ["events", t("Журнал"), null],
+              ["analysis", t("Analysis", "Анализ"), null],
             ].map(([key, title, count]) => (
               <button
                 key={String(key)}
@@ -266,19 +282,20 @@ export default function ResearchView({
               </button>
             ))}
           </div>
+          {tab === "analysis" && <AnalysisPanel job={job} />}
           {tab === "candidates" && (
             <>
               <div className="result-tools">
-                <span>Каждое совпадение требует вашей проверки</span>
+                <span>{t("Каждое совпадение требует вашей проверки")}</span>
                 <select
-                  aria-label="Фильтр совпадений"
+                  aria-label={t("Фильтр совпадений")}
                   value={filter}
                   onChange={(e) => setFilter(e.target.value)}
                 >
-                  <option value="all">Все</option>
-                  <option value="unreviewed">Не проверены</option>
-                  <option value="confirmed">Подтверждены вами</option>
-                  <option value="rejected">Отклонены</option>
+                  <option value="all">{t("Все")}</option>
+                  <option value="unreviewed">{t("Не проверены")}</option>
+                  <option value="confirmed">{t("Подтверждены вами")}</option>
+                  <option value="rejected">{t("Отклонены")}</option>
                 </select>
               </div>
               {candidates.length ? (
@@ -297,24 +314,31 @@ export default function ResearchView({
                   </div>
                   <h3>
                     {running
-                      ? "Ищем обоснованные совпадения"
+                      ? t("Ищем обоснованные совпадения")
                       : job.status === "draft"
-                        ? "Всё готово к первому поиску"
-                        : "Совпадений пока нет"}
+                        ? t("Всё готово к первому поиску")
+                        : t("Совпадений пока нет")}
                   </h3>
                   <p>
                     {running
-                      ? "Здесь появятся люди, для которых найдены цитаты на прочитанных страницах."
+                      ? t(
+                          "Здесь появятся люди, для которых найдены цитаты на прочитанных страницах.",
+                        )
                       : job.status === "draft"
-                        ? "Нажмите «Начать поиск». Приложение составит план и проверит доступные источники."
-                        : "Посмотрите источники и журнал: отсутствие совпадений может означать недостаток данных или недоступность сайтов."}
+                        ? t(
+                            "Нажмите «Начать поиск». Приложение составит план и проверит доступные источники.",
+                          )
+                        : t(
+                            "Посмотрите источники и журнал: отсутствие совпадений может означать недостаток данных или недоступность сайтов.",
+                          )}
                   </p>
                 </div>
               )}
               <p className="evidence-note">
                 <ShieldCheck size={14} />
-                Цитаты проверены на присутствие в тексте. Их смысл и
-                принадлежность человеку требуют проверки.
+                {t(
+                  "Цитаты проверены на присутствие в тексте. Их смысл и принадлежность человеку требуют проверки.",
+                )}
               </p>
             </>
           )}
@@ -334,16 +358,16 @@ export default function ResearchView({
                       <small>
                         {host(s.url)} · {date(s.fetched_at)}
                       </small>
-                      {s.error && <p className="source-error">{s.error}</p>}
+                      {s.error && <p className="source-error">{t(s.error)}</p>}
                     </div>
                     <span className={`source-state ${s.status}`}>
-                      {s.status === "read" ? "Прочитан" : "Недоступен"}
+                      {s.status === "read" ? t("Прочитан") : t("Недоступен")}
                     </span>
                   </article>
                 ))
               ) : (
                 <div className="simple-empty">
-                  Прочитанные и недоступные источники появятся здесь.
+                  {t("Прочитанные и недоступные источники появятся здесь.")}
                 </div>
               )}
             </div>
@@ -359,7 +383,7 @@ export default function ResearchView({
                     <div>
                       <strong>{q.payload.query}</strong>
                       <p>{q.payload.reason}</p>
-                      {q.error && <p className="source-error">{q.error}</p>}
+                      {q.error && <p className="source-error">{t(q.error)}</p>}
                     </div>
                     <span className="query-language">{q.payload.language}</span>
                     <span title={q.state}>
@@ -377,7 +401,7 @@ export default function ResearchView({
                 ))
               ) : (
                 <div className="simple-empty">
-                  Локальная модель составит план после запуска.
+                  {t("Локальная модель составит план после запуска.")}
                 </div>
               )}
             </div>
@@ -387,14 +411,14 @@ export default function ResearchView({
               {job.events.map((e) => (
                 <div key={e.id} className={`event ${e.level}`}>
                   <time>
-                    {new Date(e.at).toLocaleTimeString("ru-RU", {
+                    {new Date(e.at).toLocaleTimeString(locale(), {
                       hour: "2-digit",
                       minute: "2-digit",
                       second: "2-digit",
                     })}
                   </time>
                   <span className="event-dot" />
-                  <p>{e.message}</p>
+                  <p>{t(e.message)}</p>
                 </div>
               ))}
             </div>
@@ -404,13 +428,13 @@ export default function ResearchView({
           <div className="aside-card">
             <div className="aside-title">
               <ListFilter size={17} />
-              <h3>Параметры поиска</h3>
+              <h3>{t("Параметры поиска")}</h3>
             </div>
             <div className="budget-meter">
               <div>
-                <span>Время</span>
+                <span>{t("Время")}</span>
                 <strong>
-                  {duration(elapsed)} / {job.brief.budget.minutes} мин
+                  {duration(elapsed)} / {job.brief.budget.minutes} {t("мин")}
                 </strong>
               </div>
               <div className="meter">
@@ -423,25 +447,25 @@ export default function ResearchView({
             </div>
             <dl>
               <div>
-                <dt>Запросы</dt>
+                <dt>{t("Запросы")}</dt>
                 <dd>
                   {job.stats.queries} / {job.brief.budget.queries}
                 </dd>
               </div>
               <div>
-                <dt>Страницы, включая ошибки</dt>
+                <dt>{t("Страницы, включая ошибки")}</dt>
                 <dd>
                   {job.stats.pages} / {job.brief.budget.pages}
                 </dd>
               </div>
               <div>
-                <dt>Этапы планирования</dt>
+                <dt>{t("Этапы планирования")}</dt>
                 <dd>
                   {job.rounds} / {job.brief.budget.rounds}
                 </dd>
               </div>
               <div>
-                <dt>Языки</dt>
+                <dt>{t("Языки")}</dt>
                 <dd>
                   {job.brief.languages.map((l) => l.toUpperCase()).join(", ")}
                 </dd>
@@ -452,25 +476,26 @@ export default function ResearchView({
               disabled={running}
               onClick={editBudget}
             >
-              Изменить бюджет
+              {t("Изменить бюджет")}
             </button>
             {running && (
               <small className="small-muted">
-                Для изменения параметров поставьте поиск на паузу.
+                {t("Для изменения параметров поставьте поиск на паузу.")}
               </small>
             )}
           </div>
           <div className="aside-card">
             <div className="aside-title">
               <Target size={17} />
-              <h3>Ваши ориентиры</h3>
+              <h3>{t("Ваши ориентиры")}</h3>
             </div>
             <p className="context-text">
-              {job.brief.context || "Дополнительные сведения не указаны."}
+              {job.brief.context || t("Дополнительные сведения не указаны.")}
             </p>
             {job.brief.aliases.length > 0 && (
               <p className="small-muted">
-                Варианты: {job.brief.aliases.join(", ")}
+                {t("Варианты:")}
+                {job.brief.aliases.join(", ")}
               </p>
             )}
             <form
@@ -480,7 +505,7 @@ export default function ResearchView({
               }}
             >
               <label className="sr-only" htmlFor="refinement">
-                Новое уточнение
+                {t("Новое уточнение")}
               </label>
               <textarea
                 id="refinement"
@@ -491,8 +516,8 @@ export default function ResearchView({
                 disabled={running}
                 placeholder={
                   running
-                    ? "Приостановите поиск, чтобы добавить сведения"
-                    : "Добавьте новое уточнение…"
+                    ? t("Приостановите поиск, чтобы добавить сведения")
+                    : t("Добавьте новое уточнение…")
                 }
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
@@ -502,23 +527,23 @@ export default function ResearchView({
                 className="button text full"
               >
                 <Plus size={15} />
-                Добавить ориентир
+                {t("Добавить ориентир")}
               </button>
             </form>
           </div>
           <div className="local-footnote">
             <Cpu size={19} />
             <div>
-              <strong>Только локальный ИИ</strong>
+              <strong>{t("Только локальный ИИ")}</strong>
               <p>
                 {job.settings_snapshot.model ||
-                  "Модель будет выбрана при запуске"}
+                  t("Модель будет выбрана при запуске")}
               </p>
             </div>
           </div>
           <button className="delete-button" onClick={remove} disabled={running}>
             <Trash2 size={14} />
-            Удалить исследование
+            {t("Удалить исследование")}
           </button>
         </aside>
       </div>

@@ -4,13 +4,16 @@ import json
 import sys
 
 from ddgs import DDGS
+from ddgs.engines import ENGINES
 
 
 def main():
     request = json.load(sys.stdin)
     timeout = request.pop("timeout")
     try:
-        DDGS.threads = 2
+        if request["backend"] not in ENGINES.get("text", {}):
+            raise ValueError("Search adapter is not installed")
+        DDGS.threads = 1
         hits = DDGS(timeout=timeout).text(**request)
         print(json.dumps({"results": [{"url": r["href"], "title": r.get("title", "")} for r in hits]}))
     except Exception as exc:

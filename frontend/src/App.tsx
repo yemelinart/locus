@@ -1,3 +1,6 @@
+import { t, usePreferences, setPreferences } from "./i18n";
+import { Trash2, ChartNoAxesCombined, Download } from "lucide-react";
+import ReportDialog from "./components/ReportDialog";
 import { useEffect, useState } from "react";
 import {
   ArrowUpRight,
@@ -20,6 +23,10 @@ import NewResearch from "./components/NewResearch";
 import SettingsPanel from "./components/SettingsPanel";
 import ResearchView from "./components/ResearchView";
 export default function App() {
+  const prefs = usePreferences();
+  const [selectedTab, setSelectedTab] = useState("candidates");
+  const [deleteTarget, setDeleteTarget] = useState<Job | null>(null);
+  const [exportTarget, setExportTarget] = useState<string | null>(null);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [job, setJob] = useState<Detail | null>(null);
@@ -56,7 +63,7 @@ export default function App() {
         setReady(true);
       })
       .catch((e) =>
-        setError("Не удалось подключиться к приложению. " + e.message),
+        setError(t("Не удалось подключиться к приложению. ") + e.message),
       );
     void refreshModels().catch(() => {});
   }, []);
@@ -114,7 +121,7 @@ export default function App() {
             e.preventDefault();
             setSelected(null);
           }}
-          aria-label="Locus — новый поиск"
+          aria-label={t("Locus — новый поиск")}
         >
           <span className="brand-mark">
             <Target size={24} strokeWidth={1.6} />
@@ -132,47 +139,84 @@ export default function App() {
           }}
         >
           <Plus size={18} />
-          Новый поиск<span>↗</span>
+          {t("Новый поиск")}
+          <span>↗</span>
         </button>
-        <div className="nav-caption">РАБОЧЕЕ ПРОСТРАНСТВО</div>
+        <div className="nav-caption">{t("РАБОЧЕЕ ПРОСТРАНСТВО")}</div>
         <button
           className={`nav-item ${!selected ? "active" : ""}`}
           onClick={() => setSelected(null)}
         >
           <Layers3 size={18} />
-          Исследования<span>{jobs.length}</span>
+          {t("Исследования")}
+          <span>{jobs.length}</span>
         </button>
-        <div className="history-title">Последние поиски</div>
+        <div className="history-title">{t("Последние поиски")}</div>
         <div className="job-list">
           {jobs.length ? (
             jobs.map((j) => (
-              <button
-                key={j.id}
-                className={`job-link ${j.id === selected ? "selected" : ""}`}
-                onClick={() => {
-                  setSelected(j.id);
-                  setError("");
-                }}
-              >
-                <span className={`job-dot ${j.status}`} />
-                <div>
-                  <strong>{j.name}</strong>
-                  <small>
-                    {statusName[j.status]} · {date(j.created_at)}
-                  </small>
+              <div className="history-row" key={j.id}>
+                <button
+                  className={`job-link ${j.id === selected ? "selected" : ""}`}
+                  onClick={() => {
+                    setSelectedTab("candidates");
+                    setSelected(j.id);
+                    setError("");
+                  }}
+                >
+                  <span className={`job-dot ${j.status}`} />
+                  <div>
+                    <strong>{j.name}</strong>
+                    <small>
+                      {statusName[j.status]} · {date(j.created_at)}
+                    </small>
+                  </div>
+                  {j.status === "running" && (
+                    <Loader2 size={13} className="spin" />
+                  )}
+                </button>
+                <div className="history-actions">
+                  <button
+                    className="icon-button"
+                    title={t("Analysis", "Анализ")}
+                    aria-label={`${t("Analysis", "Анализ")}: ${j.name}`}
+                    onClick={() => {
+                      setSelected(j.id);
+                      setSelectedTab("analysis");
+                    }}
+                  >
+                    <ChartNoAxesCombined size={14} />
+                  </button>
+                  <button
+                    className="icon-button"
+                    title={t("Export", "Скачать")}
+                    aria-label={`${t("Export", "Скачать")}: ${j.name}`}
+                    onClick={() => setExportTarget(j.id)}
+                  >
+                    <Download size={14} />
+                  </button>
+                  <button
+                    className="icon-button"
+                    disabled={["running", "queued"].includes(j.status)}
+                    title={t("Delete", "Удалить")}
+                    aria-label={`${t("Delete", "Удалить")}: ${j.name}`}
+                    onClick={() => {
+                      setDeleteTarget(j);
+                      setDeleteOpen(true);
+                    }}
+                  >
+                    <Trash2 size={14} />
+                  </button>
                 </div>
-                {j.status === "running" && (
-                  <Loader2 size={13} className="spin" />
-                )}
-              </button>
+              </div>
             ))
           ) : (
             <div className="no-history">
               <FileText size={20} />
               <p>
-                Ваши исследования
+                {t("Ваши исследования")}
                 <br />
-                будут сохранены здесь
+                {t("будут сохранены здесь")}
               </p>
             </div>
           )}
@@ -185,11 +229,13 @@ export default function App() {
             <div>
               <strong>
                 {models.connected
-                  ? "LM Studio подключён"
-                  : "Подключите локальный ИИ"}
+                  ? t("LM Studio подключён")
+                  : t("Подключите локальный ИИ")}
               </strong>
               <span>
-                {settings?.model ? "Модель выбрана" : "Модель ещё не выбрана"}
+                {settings?.model
+                  ? t("Модель выбрана")
+                  : t("Модель ещё не выбрана")}
               </span>
             </div>
             <Cpu size={18} />
@@ -200,12 +246,12 @@ export default function App() {
             disabled={!settings}
           >
             <Settings2 size={18} />
-            Настройки
+            {t("Настройки")}
             <ArrowUpRight size={15} />
           </button>
           <div className="sidebar-meta">
-            <span>v0.1 · ранняя версия</span>
-            <span>Открытый код</span>
+            <span>{t("v0.2 · ранняя версия")}</span>
+            <span>{t("Открытый код")}</span>
           </div>
         </div>
       </aside>
@@ -213,17 +259,31 @@ export default function App() {
         <header className="topbar">
           <div className="breadcrumb">
             <Layers3 size={15} />
-            <span>Исследования</span>
+            <span>{t("Исследования")}</span>
             <span>/</span>
             <strong>
               {selected
                 ? job?.id === selected
                   ? job.name
-                  : "Загрузка…"
-                : "Новый поиск"}
+                  : t("Загрузка…")
+                : t("Новый поиск")}
             </strong>
           </div>
           <div className="topbar-right">
+            <button
+              className="language-toggle"
+              aria-label={t(
+                "Change interface language",
+                "Изменить язык приложения",
+              )}
+              onClick={() =>
+                setPreferences({
+                  language: prefs.language === "en" ? "ru" : "en",
+                })
+              }
+            >
+              {prefs.language.toUpperCase()}
+            </button>
             <span className="local-chip">
               <ShieldCheck size={14} />
               LOCAL FIRST
@@ -235,8 +295,11 @@ export default function App() {
           {error && (
             <div className="error-banner" role="alert">
               <AlertCircle size={18} />
-              <span>{error}</span>
-              <button onClick={() => setError("")} aria-label="Скрыть ошибку">
+              <span>{t(error)}</span>
+              <button
+                onClick={() => setError("")}
+                aria-label={t("Скрыть ошибку")}
+              >
                 <X size={16} />
               </button>
             </div>
@@ -244,12 +307,13 @@ export default function App() {
           {!ready ? (
             <div className="loading">
               <Loader2 className="spin" />
-              Загрузка локального пространства…
+              {t("Загрузка локального пространства…")}
             </div>
           ) : selected ? (
             job && job.id === selected ? (
               <ResearchView
-                key={job.id}
+                key={`${job.id}-${selectedTab}`}
+                initialTab={selectedTab}
                 job={job}
                 pending={busy}
                 action={(action) =>
@@ -278,12 +342,15 @@ export default function App() {
                   setBudget(job.brief.budget);
                   setBudgetOpen(true);
                 }}
-                remove={() => setDeleteOpen(true)}
+                remove={() => {
+                  setDeleteTarget(job);
+                  setDeleteOpen(true);
+                }}
               />
             ) : (
               <div className="loading">
                 <Loader2 className="spin" />
-                Открываем исследование…
+                {t("Открываем исследование…")}
               </div>
             )
           ) : (
@@ -302,6 +369,9 @@ export default function App() {
           )}
         </main>
       </div>
+      {exportTarget && (
+        <ReportDialog id={exportTarget} close={() => setExportTarget(null)} />
+      )}
       {settingsOpen && settings && (
         <SettingsPanel
           initial={settings}
@@ -313,8 +383,8 @@ export default function App() {
       )}
       {budgetOpen && (
         <Modal
-          title="Бюджет исследования"
-          subtitle="Общий лимит с учётом уже выполненной работы"
+          title={t("Бюджет исследования")}
+          subtitle={t("Общий лимит с учётом уже выполненной работы")}
           close={() => setBudgetOpen(false)}
         >
           <form
@@ -330,13 +400,13 @@ export default function App() {
           >
             <BudgetFields value={budget} onChange={setBudget} />
             <p className="small-muted">
-              Если новых направлений нет, добавьте ориентиры и увеличьте число
-              этапов. Увеличение времени само по себе не создаёт новые
-              источники.
+              {t(
+                "Если новых направлений нет, добавьте ориентиры и увеличьте число этапов. Увеличение времени само по себе не создаёт новые источники.",
+              )}
             </p>
             <div className="modal-actions">
               <button className="button primary" disabled={busy}>
-                Сохранить бюджет
+                {t("Сохранить бюджет")}
               </button>
             </div>
           </form>
@@ -344,8 +414,10 @@ export default function App() {
       )}
       {deleteOpen && (
         <Modal
-          title="Удалить исследование?"
-          subtitle="Его результаты, источники и история будут удалены с этого компьютера."
+          title={`${t("Delete research?", "Удалить исследование?")} ${deleteTarget?.name || ""}`}
+          subtitle={t(
+            "Его результаты, источники и история будут удалены с этого компьютера.",
+          )}
           close={() => setDeleteOpen(false)}
         >
           <div className="modal-actions padded">
@@ -353,21 +425,22 @@ export default function App() {
               className="button secondary"
               onClick={() => setDeleteOpen(false)}
             >
-              Отмена
+              {t("Отмена")}
             </button>
             <button
               className="button danger"
               disabled={busy}
               onClick={() =>
                 void run(async () => {
-                  await api(`/jobs/${selected}`, "DELETE");
-                  setSelected(null);
+                  await api(`/jobs/${deleteTarget?.id}`, "DELETE");
+                  if (selected === deleteTarget?.id) setSelected(null);
+                  setDeleteTarget(null);
                   setDeleteOpen(false);
                   setJobs(await api<Job[]>("/jobs"));
                 })
               }
             >
-              Удалить
+              {t("Удалить")}
             </button>
           </div>
         </Modal>
