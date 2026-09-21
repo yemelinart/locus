@@ -207,5 +207,7 @@
   "Внешний сайт не может обращаться к Locus": "An external website cannot access Locus",
   "Нет заголовка локального приложения": "Local application header missing",
   "Источник пользователя": "User-provided source",
-  "Сервер недоступен": "Server unavailable"
+  "Сервер недоступен": "Server unavailable",
+  "Критерии обновлены. Можно продолжить поиск.": "Criteria updated. Ready to continue.",
+  "Заменён новыми критериями": "Superseded by updated criteria"
 }

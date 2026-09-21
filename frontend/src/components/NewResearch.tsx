@@ -1,3 +1,4 @@
+import ClueFields from "./ClueFields";
 import { useState, type FormEvent } from "react";
 import {
   ArrowRight,
@@ -43,6 +44,7 @@ export default function NewResearch({
     year_from: null,
     year_to: null,
     context: "",
+    evidence_clues: [],
     languages: ["en", "ru", "uk"],
     include_domains: [],
     exclude_domains: [],
@@ -341,6 +343,10 @@ export default function NewResearch({
                   </div>
                 </div>
               )}
+            <ClueFields
+              value={brief.evidence_clues}
+              onChange={(v) => set("evidence_clues", v)}
+            />
             <div className="grid two">
               <Field label={t("Год рождения — от")}>
                 {(id) => (

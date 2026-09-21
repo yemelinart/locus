@@ -79,6 +79,19 @@ class Budget(Model):
     rounds: int = Field(default=5, ge=1, le=10000)
 
 
+class EvidenceClue(Model):
+    kind: Literal["education", "organization", "public_work"]
+    text: str = Field(min_length=3, max_length=160)
+
+    @field_validator("text")
+    @classmethod
+    def trim(cls, value):
+        value = value.strip()
+        if len(value) < 3:
+            raise ValueError("A clue needs at least three characters")
+        return value
+
+
 class Brief(Model):
     name: str = Field(min_length=2, max_length=160)
     aliases: list[str] = Field(default_factory=list, max_length=15)
@@ -91,6 +104,7 @@ class Brief(Model):
     year_from: int | None = Field(default=None, ge=1850, le=2100)
     year_to: int | None = Field(default=None, ge=1850, le=2100)
     context: str = Field(default="", max_length=6000)
+    evidence_clues: list[EvidenceClue] = Field(default_factory=list, max_length=12)
     languages: list[Literal["ru", "en", "uk", "de", "fr", "es", "it", "pt", "tr", "pl", "zh", "ja"]] = Field(
         default_factory=lambda: ["en", "ru", "uk"], min_length=1, max_length=12
     )
@@ -177,3 +191,9 @@ class Review(Model):
 
 class Refinement(Model):
     text: str = Field(min_length=2, max_length=2000)
+
+
+class Continuation(Model):
+    brief: Brief
+    additional_budget: Budget | None = None
+    start: bool = False

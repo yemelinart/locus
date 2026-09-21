@@ -250,7 +250,7 @@ export default function App() {
             <ArrowUpRight size={15} />
           </button>
           <div className="sidebar-meta">
-            <span>{t("v0.2 · ранняя версия")}</span>
+            <span>{t("v0.3 · early release", "v0.3 · ранняя версия")}</span>
             <span>{t("Открытый код")}</span>
           </div>
         </div>
@@ -316,6 +316,7 @@ export default function App() {
                 initialTab={selectedTab}
                 job={job}
                 pending={busy}
+                error={error}
                 action={(action) =>
                   void run(async () => {
                     await api(`/jobs/${selected}/${action}`, "POST");
@@ -335,6 +336,12 @@ export default function App() {
                 refine={(text) =>
                   run(async () => {
                     await api(`/jobs/${selected}/refine`, "POST", { text });
+                    await refresh();
+                  })
+                }
+                continueResearch={(value) =>
+                  run(async () => {
+                    await api(`/jobs/${selected}/continue`, "POST", value);
                     await refresh();
                   })
                 }
@@ -416,7 +423,8 @@ export default function App() {
         <Modal
           title={`${t("Delete research?", "Удалить исследование?")} ${deleteTarget?.name || ""}`}
           subtitle={t(
-            "Его результаты, источники и история будут удалены с этого компьютера.",
+            "The research and its local project folder will be deleted. Previously exported archives and migration backups remain.",
+            "Исследование и его локальная папка будут удалены. Ранее скачанные архивы и резервные копии миграции сохранятся.",
           )}
           close={() => setDeleteOpen(false)}
         >

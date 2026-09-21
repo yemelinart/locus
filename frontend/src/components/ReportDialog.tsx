@@ -21,6 +21,15 @@ export default function ReportDialog({
         {(
           [
             [
+              "zip",
+              "ZIP",
+              t(
+                "Project archive: offline page, PDF, data, quotations and criteria history.",
+                "Архив проекта: офлайн-страница, PDF, данные, цитаты и история критериев.",
+              ),
+              Download,
+            ],
+            [
               "pdf",
               "PDF",
               t(

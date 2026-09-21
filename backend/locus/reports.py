@@ -145,6 +145,17 @@ def blocks(detail, lang="en"):
     ]:
         if brief.get(key):
             line(en, ru, ", ".join(brief[key]))
+    for clue in brief.get("evidence_clues", []):
+        line("Comparison clue", "Ориентир для сравнения", clue["kind"] + ": " + clue["text"])
+    if detail.get("revisions"):
+        line("Criteria revision", "Версия критериев", str(detail.get("revision", 1)))
+        for revision in detail["revisions"]:
+            stamp = datetime.fromisoformat(revision["at"]).strftime("%Y-%m-%d %H:%M UTC")
+            add(
+                "bullet",
+                f"v{revision['number']} · {stamp}"
+                + (" · " + revision["brief"]["context"] if revision["brief"]["context"] else ""),
+            )
     section("03 / Search coverage", "03 / Где искали")
     if not a["engines"]:
         add(
@@ -191,9 +202,40 @@ def blocks(detail, lang="en"):
                 "rejected": t("Rejected by user", "Отклонено пользователем"),
             }[candidate["status"]],
         )
+        assessment = candidate.get("assessment")
+        if assessment:
+            from .evidence import LABELS
+
+            label = LABELS[assessment["level"]][lang == "ru"]
+            line("Evidence support", "Обоснованность совпадения", label)
+            add(
+                "note",
+                t(
+                    "Rule-based support, not an identity probability. Only supplied names and structured clues found in quotations count. Missing clues are not contradictions.",
+                    "Оценка по правилам, а не вероятность личности. Учитываются только заданные имена и структурированные ориентиры, найденные в цитатах. Отсутствие сведений не означает противоречия.",
+                ),
+            )
+            for clue in assessment["supported"]:
+                add("bullet", t("Supported clue: ", "Поддержанный ориентир: ") + clue["text"])
+            for clue in assessment["missing"]:
+                add(
+                    "bullet",
+                    t("Not found in recorded quotes: ", "Не найдено в записанных цитатах: ") + clue["text"],
+                )
+            if assessment["review_outdated"]:
+                add(
+                    "warning",
+                    t(
+                        "User review predates the current criteria. Review again.",
+                        "Пользовательская оценка относится к предыдущим критериям. Проверьте заново.",
+                    ),
+                )
         add("p", value["description"])
         for m in value["matches"]:
-            add("bullet", t("Matching clue: ", "Совпадающий ориентир: ") + m)
+            add(
+                "bullet",
+                t("Model suggestion (review required): ", "Предположение модели (нужна проверка): ") + m,
+            )
         for m in value["contradictions"]:
             add("warning", t("Contradiction: ", "Противоречие: ") + m)
         for f in value["facts"]:
@@ -243,10 +285,11 @@ def blocks(detail, lang="en"):
         line("Status", "Статус", s["status"])
         if s["error"]:
             add("warning", translate(s["error"], lang))
-    section("07 / Query log", "07 / Поисковые запросы")
+    if detail["queries"]:
+        section("07 / Query log", "07 / Поисковые запросы")
     for q in detail["queries"]:
         add("h2", q["payload"]["query"])
-        add("p", f"{q['payload']['language'].upper()} / {translate(q['state'], lang)}")
+        add("p", f"{q['payload'].get('language', 'en').upper()} / {translate(q['state'], lang)}")
         if q["payload"].get("reason"):
             add("p", q["payload"]["reason"])
         if q["error"]:

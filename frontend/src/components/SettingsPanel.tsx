@@ -842,7 +842,7 @@ export default function SettingsPanel({
           <section className="about-panel">
             <div className="about-mark">locus.</div>
             <span className="badge completed">
-              v0.2 · {t("Local research", "Локальный поиск")}
+              v0.3 · {t("Local research", "Локальный поиск")}
             </span>
             <h2>VibeCoded by Sergey Yemelin</h2>
             <p>

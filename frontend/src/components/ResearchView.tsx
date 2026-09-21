@@ -1,3 +1,5 @@
+import EvidenceMeter from "./EvidenceMeter";
+import ContinueDialog, { type Continuation } from "./ContinueDialog";
 import { t, getPreferences, locale } from "../i18n";
 import AnalysisPanel from "./AnalysisPanel";
 import ReportDialog from "./ReportDialog";
@@ -60,13 +62,24 @@ function CandidateCard({
           <p>{v.description}</p>
         </div>
         <span className={`review-label ${candidate.status}`}>
-          {candidate.status === "confirmed"
-            ? t("Вы подтвердили")
-            : candidate.status === "rejected"
-              ? t("Отклонён")
-              : t("Возможное совпадение")}
+          {candidate.assessment?.review_outdated
+            ? t("Review needs updating", "Нужно обновить оценку")
+            : candidate.status === "confirmed"
+              ? t("Вы подтвердили")
+              : candidate.status === "rejected"
+                ? t("Отклонён")
+                : t("Возможное совпадение")}
         </span>
       </div>
+      <EvidenceMeter assessment={candidate.assessment} />
+      {candidate.assessment?.review_outdated && (
+        <p className="review-stale">
+          {t(
+            "Criteria changed after your review. Please recheck this card.",
+            "Критерии изменились после вашей оценки. Проверьте карточку заново.",
+          )}
+        </p>
+      )}
       {v.matches.length > 0 && (
         <div className="match-notes">
           {v.matches.map((m, i) => (
@@ -112,18 +125,26 @@ function CandidateCard({
             className={candidate.status === "confirmed" ? "selected" : ""}
             onClick={() =>
               review(
-                candidate.status === "confirmed" ? "unreviewed" : "confirmed",
+                candidate.status === "confirmed" &&
+                  !candidate.assessment?.review_outdated
+                  ? "unreviewed"
+                  : "confirmed",
               )
             }
           >
             <Check size={15} />
-            {t("Это он / она")}
+            {candidate.assessment?.review_outdated
+              ? t("Confirm again", "Подтвердить заново")
+              : t("Это он / она")}
           </button>
           <button
             className={candidate.status === "rejected" ? "selected" : ""}
             onClick={() =>
               review(
-                candidate.status === "rejected" ? "unreviewed" : "rejected",
+                candidate.status === "rejected" &&
+                  !candidate.assessment?.review_outdated
+                  ? "unreviewed"
+                  : "rejected",
               )
             }
           >
@@ -142,6 +163,8 @@ export default function ResearchView({
   review,
   refine,
   editBudget,
+  continueResearch,
+  error,
   remove,
   pending,
   initialTab = "candidates",
@@ -152,12 +175,15 @@ export default function ResearchView({
   review: (id: string, status: Candidate["status"]) => void;
   refine: (text: string) => Promise<boolean>;
   editBudget: () => void;
+  continueResearch: (value: Continuation) => Promise<boolean>;
+  error: string;
   remove: () => void;
   pending: boolean;
 }) {
   const [tab, setTab] = useState(initialTab);
   const [reportOpen, setReportOpen] = useState(false);
-  const [filter, setFilter] = useState("all");
+  const [continueOpen, setContinueOpen] = useState(false);
+  const [filter, setFilter] = useState("active");
   const [note, setNote] = useState("");
   const running = ["running", "queued"].includes(job.status);
   const elapsed =
@@ -166,10 +192,25 @@ export default function ResearchView({
       ? Math.max(0, (Date.now() - Date.parse(job.updated_at)) / 1000)
       : 0);
   const candidates = job.candidates.filter(
-    (c) => filter === "all" || c.status === filter,
+    (c) =>
+      filter === "all" ||
+      (filter === "active"
+        ? !c.assessment?.excluded && c.status !== "rejected"
+        : filter === "archived"
+          ? c.assessment?.excluded
+          : c.status === filter),
   );
   return (
     <div className="research-view">
+      {continueOpen && (
+        <ContinueDialog
+          job={job}
+          pending={pending}
+          close={() => setContinueOpen(false)}
+          save={continueResearch}
+          error={error}
+        />
+      )}
       {reportOpen && (
         <ReportDialog id={job.id} close={() => setReportOpen(false)} />
       )}
@@ -269,6 +310,7 @@ export default function ResearchView({
               ["queries", t("План"), job.queries.length],
               ["events", t("Журнал"), null],
               ["analysis", t("Analysis", "Анализ"), null],
+              ["history", t("History", "История"), job.revisions?.length || 1],
             ].map(([key, title, count]) => (
               <button
                 key={String(key)}
@@ -283,6 +325,64 @@ export default function ResearchView({
             ))}
           </div>
           {tab === "analysis" && <AnalysisPanel job={job} />}
+          {tab === "history" && (
+            <div className="revision-history">
+              <h3>
+                {t(
+                  "One project, continuing research",
+                  "Один проект, продолжающийся поиск",
+                )}
+              </h3>
+              <p>
+                {t(
+                  "Every criteria change is saved. ZIP includes the offline report, quotations, links and previous assessments. Findings stay separate until you review them.",
+                  "Каждое изменение критериев сохранено. ZIP содержит офлайн-отчёт, цитаты, ссылки и прежние оценки. Найденные карточки остаются раздельными до вашей проверки.",
+                )}
+              </p>
+              <button
+                className="button secondary"
+                onClick={() => setReportOpen(true)}
+              >
+                {t("Export project archive", "Скачать архив проекта")}
+              </button>
+              {job.revisions?.map((r) => (
+                <details key={r.number}>
+                  <summary>
+                    <strong>
+                      {t("Criteria", "Критерии")} v{r.number}
+                    </strong>{" "}
+                    · {date(r.at)}
+                  </summary>
+                  <p>
+                    {r.brief.name} · {r.brief.aliases.join(", ")}
+                  </p>
+                  <p>
+                    {r.brief.context ||
+                      t(
+                        "No additional context",
+                        "Без дополнительного контекста",
+                      )}
+                  </p>
+                  {r.brief.evidence_clues?.map((c, i) => (
+                    <p key={i}>
+                      {c.kind}: {c.text}
+                    </p>
+                  ))}
+                  <p>
+                    {t("Languages", "Языки")}: {r.brief.languages.join(", ")}
+                  </p>
+                  <p>
+                    {t(
+                      "Include / exclude domains",
+                      "Включённые / исключённые домены",
+                    )}
+                    : {r.brief.include_domains.join(", ") || "—"} /{" "}
+                    {r.brief.exclude_domains.join(", ") || "—"}
+                  </p>
+                </details>
+              ))}
+            </div>
+          )}
           {tab === "candidates" && (
             <>
               <div className="result-tools">
@@ -292,6 +392,12 @@ export default function ResearchView({
                   value={filter}
                   onChange={(e) => setFilter(e.target.value)}
                 >
+                  <option value="active">
+                    {t("Current candidates", "Актуальные карточки")}
+                  </option>
+                  <option value="archived">
+                    {t("Archived by filters", "В архиве по фильтрам")}
+                  </option>
                   <option value="all">{t("Все")}</option>
                   <option value="unreviewed">{t("Не проверены")}</option>
                   <option value="confirmed">{t("Подтверждены вами")}</option>
@@ -489,6 +595,18 @@ export default function ResearchView({
               <Target size={17} />
               <h3>{t("Ваши ориентиры")}</h3>
             </div>
+            <button
+              className="button secondary full"
+              disabled={running || pending}
+              onClick={() => setContinueOpen(true)}
+            >
+              {t("Refine & continue", "Уточнить и продолжить")}
+            </button>
+            {!!job.brief.evidence_clues?.length && (
+              <p className="small-muted">
+                {job.brief.evidence_clues.map((c) => c.text).join(" · ")}
+              </p>
+            )}
             <p className="context-text">
               {job.brief.context || t("Дополнительные сведения не указаны.")}
             </p>

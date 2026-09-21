@@ -1,4 +1,5 @@
 import json
+import math
 import sqlite3
 from contextlib import contextmanager
 from datetime import datetime, timezone
@@ -25,10 +26,11 @@ class Store:
         path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
         self.path = path
         with self.connect() as c:
-            if c.execute("PRAGMA user_version").fetchone()[0] > 2:
+            if c.execute("PRAGMA user_version").fetchone()[0] > 3:
                 raise RuntimeError("Database was created by a newer version of Locus")
-            if c.execute("PRAGMA user_version").fetchone()[0] == 1:
-                backup = path.with_suffix(".v1.backup.sqlite3")
+            version = c.execute("PRAGMA user_version").fetchone()[0]
+            if version in {1, 2}:
+                backup = path.with_suffix(f".v{version}.backup.sqlite3")
                 if not backup.exists():
                     with sqlite3.connect(backup) as target:
                         c.backup(target)
@@ -73,8 +75,24 @@ class Store:
                     result_count INTEGER NOT NULL, seconds REAL NOT NULL, error TEXT NOT NULL,
                     at TEXT NOT NULL
                 );
-                PRAGMA user_version=2;
+                CREATE TABLE IF NOT EXISTS revisions (
+                    job_id TEXT NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
+                    number INTEGER NOT NULL, at TEXT NOT NULL, brief TEXT NOT NULL,
+                    previous_assessments TEXT NOT NULL DEFAULT '[]',
+                    PRIMARY KEY(job_id, number)
+                );
             """)
+            for table, column, definition in [
+                ("jobs", "revision", "INTEGER NOT NULL DEFAULT 1"),
+                ("candidates", "review_revision", "INTEGER NOT NULL DEFAULT 1"),
+                ("tasks", "revision", "INTEGER NOT NULL DEFAULT 1"),
+            ]:
+                if column not in {r[1] for r in c.execute(f"PRAGMA table_info({table})")}:
+                    c.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
+            c.execute(
+                "INSERT OR IGNORE INTO revisions(job_id,number,at,brief) SELECT id,1,created_at,brief FROM jobs"
+            )
+            c.execute("PRAGMA user_version=3")
             c.execute("INSERT OR IGNORE INTO settings VALUES(1,?)", (dump(Settings().model_dump()),))
         path.chmod(0o600)
 
@@ -105,6 +123,11 @@ class Store:
             c.execute(
                 "INSERT INTO jobs(id,name,brief,created_at,updated_at) VALUES(?,?,?,?,?)",
                 (job_id, brief.name, brief.model_dump_json(), stamp, stamp),
+            )
+        with self.connect() as c:
+            c.execute(
+                "INSERT INTO revisions(job_id,number,at,brief) VALUES(?,1,?,?)",
+                (job_id, stamp, brief.model_dump_json()),
             )
         self.event(job_id, "Поиск создан. Модель запускается только после нажатия «Начать».")
         return self.job(job_id)
@@ -141,7 +164,7 @@ class Store:
         return [self.job(i) for i in ids]
 
     def update(self, job_id: str, **values):
-        allowed = {"brief", "status", "reason", "active_seconds", "rounds", "settings_snapshot"}
+        allowed = {"brief", "status", "reason", "active_seconds", "rounds", "settings_snapshot", "revision"}
         if not set(values).issubset(allowed):
             raise ValueError("Invalid job fields")
         values["updated_at"] = now()
@@ -156,15 +179,94 @@ class Store:
                 "INSERT INTO events(job_id,at,level,message) VALUES(?,?,?,?)",
                 (job_id, now(), level, message[:2000]),
             )
+        self.sync_archive(job_id)
+
+    def sync_archive(self, job_id):
+        from .archive import sync
+
+        try:
+            sync(self, job_id)
+        except (OSError, ValueError):
+            # A rebuildable folder must not stop the durable research worker.
+            message = "Local archive could not be updated. Database findings are preserved; check folder permissions before exporting."
+            with self.connect() as c:
+                latest = c.execute(
+                    "SELECT message FROM events WHERE job_id=? AND level='warning' ORDER BY id DESC LIMIT 1",
+                    (job_id,),
+                ).fetchone()
+                if not latest or latest[0] != message:
+                    c.execute(
+                        "INSERT INTO events(job_id,at,level,message) VALUES(?,?,'warning',?)",
+                        (job_id, now(), message),
+                    )
+
+    def continue_research(self, job_id, brief, additional_budget=None):
+        from .models import Budget
+
+        previous = self.detail(job_id)
+        if previous["status"] in {"running", "queued"}:
+            raise ValueError("Pause research before changing criteria")
+        if additional_budget:
+            brief.budget = Budget(
+                minutes=math.ceil(previous["active_seconds"] / 60) + additional_budget.minutes,
+                queries=previous["stats"]["queries"] + additional_budget.queries,
+                pages=previous["stats"]["pages"] + additional_budget.pages,
+                rounds=previous["rounds"] + additional_budget.rounds,
+            )
+        revision = previous["revision"] + 1
+        stamp = now()
+        with self.connect() as c:
+            c.execute(
+                "UPDATE jobs SET name=?,brief=?,revision=?,status='paused',reason=?,updated_at=? WHERE id=?",
+                (
+                    brief.name,
+                    brief.model_dump_json(),
+                    revision,
+                    "Criteria updated. Ready to continue.",
+                    stamp,
+                    job_id,
+                ),
+            )
+            c.execute(
+                "INSERT INTO revisions VALUES(?,?,?,?,?)",
+                (
+                    job_id,
+                    revision,
+                    stamp,
+                    brief.model_dump_json(),
+                    dump(
+                        [
+                            {"id": x["id"], "status": x["status"], "assessment": x["assessment"]}
+                            for x in previous["candidates"]
+                        ]
+                    ),
+                ),
+            )
+            c.execute(
+                "UPDATE tasks SET state='superseded',error='Superseded by updated criteria' WHERE job_id=? AND state='pending'",
+                (job_id,),
+            )
+        self.event(
+            job_id,
+            f"Критерии сохранены: версия {revision}. Прежние находки сохранены, обоснованность пересчитана.",
+        )
+        return self.detail(job_id)
 
     def enqueue(self, job_id: str, kind: str, key: str, payload: dict) -> bool:
         with self.connect() as c:
-            return bool(
-                c.execute(
-                    "INSERT OR IGNORE INTO tasks(id,job_id,kind,key,payload) VALUES(?,?,?,?,?)",
-                    (uid(), job_id, kind, key, dump(payload)),
+            revision = c.execute("SELECT revision FROM jobs WHERE id=?", (job_id,)).fetchone()[0]
+            if kind == "search":
+                key = f"r{revision}:" + key
+            inserted = c.execute(
+                "INSERT OR IGNORE INTO tasks(id,job_id,kind,key,payload,revision) VALUES(?,?,?,?,?,?)",
+                (uid(), job_id, kind, key, dump(payload), revision),
+            ).rowcount
+            if not inserted:
+                inserted = c.execute(
+                    "UPDATE tasks SET state='pending',error='',payload=?,revision=? WHERE job_id=? AND kind=? AND key=? AND state='superseded'",
+                    (dump(payload), revision, job_id, kind, key),
                 ).rowcount
-            )
+            return bool(inserted)
 
     def task(self, job_id: str, kind: str | None = None) -> dict | None:
         with self.connect() as c:
@@ -214,6 +316,21 @@ class Store:
             result["search_runs"] = [
                 dict(r) for r in c.execute("SELECT * FROM search_runs WHERE job_id=? ORDER BY at", (job_id,))
             ]
+            result["revisions"] = [
+                dict(r)
+                | {
+                    "brief": json.loads(r["brief"]),
+                    "previous_assessments": json.loads(r["previous_assessments"]),
+                }
+                for r in c.execute("SELECT * FROM revisions WHERE job_id=? ORDER BY number DESC", (job_id,))
+            ]
+        from .evidence import assess
+
+        sources = {s["id"]: s for s in result["sources"]}
+        for candidate in result["candidates"]:
+            candidate["assessment"] = assess(
+                candidate, sources.get(candidate["source_id"], {}), result["brief"], result["revision"]
+            )
         return result
 
     def record_search(self, job_id, task_id, attempts):

@@ -171,7 +171,7 @@ test("name hypotheses, sidebar analysis, PDF download and deletion", async ({
     .getByRole("button", { name: "Export: Сергей Емелин", exact: true })
     .click();
   const pending = page.waitForEvent("download");
-  await page.getByRole("link", { name: /PDF/ }).click();
+  await page.getByRole("link", { name: /^PDF/ }).click();
   const download = await pending;
   expect(download.suggestedFilename()).toMatch(/\.pdf$/);
   expect(await download.failure()).toBeNull();
@@ -262,4 +262,187 @@ test("all palettes and tones keep accessible text contrast", async ({
         .analyze();
       expect(result.violations, `${palette} ${tone}`).toEqual([]);
     }
+});
+
+test("continue the same project with versioned criteria, export ZIP, and delete", async ({
+  page,
+  request,
+}) => {
+  const headers = { "X-Locus-Request": "1" };
+  const created = await request.post("/api/jobs", {
+    headers,
+    data: {
+      name: "Fictional archive test",
+      context: "Original public context",
+    },
+  });
+  const job = await created.json();
+  await page.goto("/");
+  await page
+    .getByRole("button", { name: /Fictional archive test/ })
+    .first()
+    .click();
+  await page
+    .getByRole("button", { name: "Refine & continue", exact: true })
+    .click();
+  const dialog = page.getByRole("dialog");
+  await dialog
+    .getByLabel("School or university", { exact: true })
+    .fill("Example University");
+  await dialog
+    .getByLabel("Organization or workplace", { exact: true })
+    .fill("Example Labs");
+  await dialog
+    .getByLabel("Context and new clues")
+    .fill("Updated public context");
+  await expect(
+    dialog.getByLabel("Start the local search after saving"),
+  ).not.toBeChecked();
+  const scan = await new AxeBuilder({ page })
+    .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
+    .analyze();
+  expect(scan.violations).toEqual([]);
+  await page.screenshot({
+    path: "../.qa/v03/continuation.png",
+    fullPage: true,
+  });
+  await dialog.getByRole("button", { name: "Save new criteria" }).click();
+  await expect(dialog).not.toBeVisible();
+  await expect(page.locator(".context-text")).toContainText(
+    "Updated public context",
+  );
+  const result = await (await request.get(`/api/jobs/${job.id}`)).json();
+  expect(result.id).toBe(job.id);
+  expect(result.revision).toBe(2);
+  expect(result.brief.evidence_clues).toHaveLength(2);
+  expect(result.status).toBe("paused");
+  await page.getByRole("tab", { name: /History/ }).click();
+  await expect(page.getByText("Criteria v2", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Export project archive" }).click();
+  const downloadPromise = page.waitForEvent("download");
+  await page.getByRole("dialog").getByRole("link", { name: /ZIP/ }).click();
+  const download = await downloadPromise;
+  expect(download.suggestedFilename()).toBe(`locus-${job.id}.zip`);
+  await page.getByRole("button", { name: "Close", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Delete research", exact: true })
+    .click();
+  await expect(page.getByRole("dialog")).toContainText("local project folder");
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: "Delete", exact: true })
+    .click();
+  await expect(page.getByRole("dialog")).not.toBeVisible();
+  await expect
+    .poll(async () => (await request.get(`/api/jobs/${job.id}`)).status())
+    .toBe(404);
+});
+
+test("evidence support explains quotes, missing clues and archived candidates", async ({
+  page,
+  request,
+}) => {
+  const created = await request.post("/api/jobs", {
+    headers: { "X-Locus-Request": "1" },
+    data: { name: "Fictional evidence test" },
+  });
+  const job = await created.json();
+  await page.route(`**/api/jobs/${job.id}`, async (route) => {
+    if (route.request().method() !== "GET") return route.continue();
+    const response = await route.fetch();
+    const data = await response.json();
+    data.sources = [
+      {
+        id: "source",
+        url: "https://example.org/profile",
+        title: "Example University profile",
+        status: "read",
+        error: "",
+        fetched_at: new Date().toISOString(),
+      },
+    ];
+    const value = {
+      name: "Alex Rowan",
+      description: "Synthetic public profile for interface testing",
+      matches: [],
+      contradictions: [],
+      facts: [
+        {
+          category: "education",
+          statement: "Studied at Example University",
+          quote: "Alex Rowan studied at Example University.",
+        },
+      ],
+    };
+    const assessment = {
+      level: "supported",
+      name_quote: value.facts[0].quote,
+      supported: [
+        {
+          kind: "education",
+          text: "Example University",
+          quote: value.facts[0].quote,
+        },
+      ],
+      missing: [{ kind: "organization", text: "Example Labs" }],
+      flags: [],
+      excluded: false,
+      review_outdated: false,
+      revision: 1,
+      method: "quote-clues-v1",
+    };
+    data.candidates = [
+      {
+        id: "candidate",
+        source_id: "source",
+        status: "unreviewed",
+        value,
+        assessment,
+      },
+      {
+        id: "archived",
+        source_id: "source",
+        status: "unreviewed",
+        value: { ...value, name: "Archived Alex" },
+        assessment: { ...assessment, level: "excluded", excluded: true },
+      },
+    ];
+    await route.fulfill({ response, json: data });
+  });
+  await page.goto("/");
+  await page
+    .getByRole("button", { name: /Fictional evidence test/ })
+    .first()
+    .click();
+  await expect(
+    page.getByText("Supporting clues", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Archived Alex", exact: true }),
+  ).not.toBeVisible();
+  await page.locator(".evidence-meter summary").click();
+  await expect(page.locator(".evidence-explanation")).toContainText(
+    "not an identity probability",
+  );
+  await expect(page.locator(".evidence-explanation")).toContainText(
+    "Example Labs",
+  );
+  const scan = await new AxeBuilder({ page })
+    .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
+    .analyze();
+  expect(scan.violations).toEqual([]);
+  await page.screenshot({ path: "../.qa/v03/evidence.png", fullPage: true });
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBe(true);
+  await page.getByLabel("Filter candidates").selectOption("archived");
+  await expect(
+    page.getByRole("heading", { name: "Archived Alex", exact: true }),
+  ).toBeVisible();
+  await request.delete(`/api/jobs/${job.id}`, {
+    headers: { "X-Locus-Request": "1" },
+  });
 });

@@ -2624,3 +2624,133 @@ dd {
 .overlay {
   background: rgba(0, 0, 0, 0.48);
 }
+
+/* Evidence remains legible in every palette; labels carry meaning beyond color. */
+.evidence-meter {
+  margin: 18px 0;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.evidence-meter summary {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  cursor: pointer;
+}
+.evidence-meter summary small {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.evidence-bars {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.evidence-bars i {
+  display: block;
+  width: 20px;
+  height: 9px;
+  border: 1px solid var(--muted);
+  border-radius: 3px;
+  opacity: 0.4;
+}
+.evidence-bars i.filled {
+  background: var(--green);
+  border-color: var(--green);
+  opacity: 1;
+}
+.evidence-explanation {
+  padding-top: 12px;
+  font-size: 13px;
+  line-height: 1.65;
+}
+.evidence-explanation blockquote {
+  margin: 10px 0 16px;
+  padding-left: 14px;
+  border-left: 2px solid var(--line);
+}
+.review-stale {
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-size: 13px;
+}
+.continuation-form {
+  padding: 24px 27px;
+  display: grid;
+  gap: 18px;
+}
+.continuation-filters summary {
+  cursor: pointer;
+  margin-bottom: 18px;
+}
+.continuation-filters .field,
+.continuation-filters .language-options {
+  margin: 14px 0;
+}
+.continuation-form .check-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+}
+.continuation-form input[type="checkbox"],
+.language-options input {
+  width: auto;
+}
+.language-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+.language-options label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}
+.clue-fields {
+  display: grid;
+  gap: 12px;
+}
+.revision-history {
+  padding: 24px;
+  line-height: 1.7;
+}
+.revision-history details {
+  border-top: 1px solid var(--line);
+  margin-top: 20px;
+  padding-top: 16px;
+  overflow-wrap: anywhere;
+}
+.revision-history summary {
+  cursor: pointer;
+}
+
+.continuation-form .field,
+.clue-fields .field {
+  margin-bottom: 0;
+}
+.evidence-meter summary {
+  justify-content: flex-start;
+}
+@media (max-width: 600px) {
+  .continuation-form {
+    padding: 20px;
+  }
+  .evidence-bars i {
+    width: 14px;
+  }
+}
+.results-column {
+  min-width: 0;
+}
+@media (max-width: 1000px) {
+  .workspace-columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

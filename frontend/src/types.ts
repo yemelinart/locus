@@ -1,3 +1,7 @@
+export type EvidenceClue = {
+  kind: "education" | "organization" | "public_work";
+  text: string;
+};
 export type Budget = {
   minutes: number;
   queries: number;
@@ -16,6 +20,7 @@ export type Brief = {
   year_from: number | null;
   year_to: number | null;
   context: string;
+  evidence_clues: EvidenceClue[];
   languages: string[];
   include_domains: string[];
   exclude_domains: string[];
@@ -57,6 +62,23 @@ export type Source = {
 };
 export type Fact = { category: string; statement: string; quote: string };
 export type Candidate = {
+  assessment?: {
+    level:
+      | "insufficient"
+      | "limited"
+      | "supported"
+      | "strong"
+      | "conflicting"
+      | "excluded";
+    name_quote: string;
+    supported: (EvidenceClue & { quote: string })[];
+    missing: EvidenceClue[];
+    flags: string[];
+    excluded: boolean;
+    review_outdated: boolean;
+    revision: number;
+    method: string;
+  };
   id: string;
   source_id: string;
   status: "unreviewed" | "confirmed" | "rejected";
@@ -69,6 +91,7 @@ export type Candidate = {
   };
 };
 export type Job = {
+  revision: number;
   id: string;
   name: string;
   brief: Brief;
@@ -87,6 +110,7 @@ export type Job = {
   settings_snapshot: Partial<Settings>;
 };
 export type Detail = Job & {
+  revisions: { number: number; at: string; brief: Brief }[];
   search_runs: SearchRun[];
   sources: Source[];
   candidates: Candidate[];

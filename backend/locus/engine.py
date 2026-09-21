@@ -136,6 +136,14 @@ class Engine:
                         canonical_url(url),
                         {"url": canonical_url(url), "title": "Источник пользователя"},
                     )
+            with self.store.connect() as c:
+                unread = c.execute(
+                    "SELECT id,url FROM sources WHERE job_id=? AND status='read' AND id NOT IN (SELECT source_id FROM candidates WHERE job_id=?)",
+                    (job_id, job_id),
+                ).fetchall()
+            for page in unread:
+                if domain_allowed(page["url"], brief.include_domains, brief.exclude_domains):
+                    self.store.enqueue(job_id, "analyze", page["id"], {"source_id": page["id"]})
             consecutive_search_errors = 0
             while True:
                 self.store.update(job_id, active_seconds=elapsed())
@@ -166,15 +174,19 @@ class Engine:
                         f"Модель планирует этап {job['rounds'] + 1}: языки, варианты имени, новые направления.",
                     )
                     detail = self.store.detail(job_id)
-                    previous = [q["payload"]["query"] for q in detail["queries"]]
+                    previous = [
+                        q["payload"]["query"] for q in detail["queries"] if q["revision"] == job["revision"]
+                    ]
                     clues = [
                         {
                             "name": c["value"]["name"],
                             "description": c["value"]["description"],
                             "review": c["status"],
+                            "evidence": c["assessment"],
                             "facts": c["value"]["facts"],
                         }
                         for c in detail["candidates"]
+                        if not c["assessment"]["excluded"]
                     ][-12:]
                     remaining = brief.budget.queries - stats["queries"]
                     prompt = (
@@ -359,3 +371,4 @@ class Engine:
             with suppress(asyncio.CancelledError):
                 await clock_task
             self.store.update(job_id, active_seconds=elapsed())
+            self.store.sync_archive(job_id)

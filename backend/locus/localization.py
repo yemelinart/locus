@@ -15,6 +15,7 @@ STATUS = {
     "done": ("Done", "Выполнен"),
     "failed": ("Failed", "Ошибка"),
     "pending": ("Pending", "В очереди"),
+    "superseded": ("Superseded", "Заменён новыми критериями"),
 }
 
 

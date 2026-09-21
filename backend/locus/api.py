@@ -10,10 +10,10 @@ from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, Res
 from fastapi.staticfiles import StaticFiles
 from starlette.concurrency import run_in_threadpool
 
-from . import __version__, reports
+from . import __version__, archive, reports
 from .db import Store, dump
 from .engine import Engine, friendly_error
-from .models import Brief, Budget, Query, Refinement, Review, Settings
+from .models import Brief, Budget, Continuation, Query, Refinement, Review, Settings
 from .names import variants
 from .providers.local_model import LocalModel
 from .providers.search import Search, catalog
@@ -28,6 +28,8 @@ def create_app(data_dir: Path | None = None, run_worker: bool = True) -> FastAPI
 
     @asynccontextmanager
     async def lifespan(app):
+        for job in store.jobs():
+            store.sync_archive(job["id"])
         if run_worker:
             engine.start()
         yield
@@ -211,17 +213,29 @@ def create_app(data_dir: Path | None = None, run_worker: bool = True) -> FastAPI
         if len(new_context) > 6000:
             raise HTTPException(422, "Суммарный контекст превышает 6000 символов")
         brief.context = new_context
-        store.update(job_id, brief=brief.model_dump_json(), status="paused", reason="Добавлены уточнения")
-        store.event(job_id, "Добавлены новые ориентиры пользователя. Они будут учтены в следующих шагах.")
+        store.continue_research(job_id, brief)
         return store.job(job_id)
+
+    @app.post("/api/jobs/{job_id}/continue")
+    async def continue_research(job_id: str, request: Continuation):
+        editable(job_id)
+        if request.start and not store.settings().model:
+            raise HTTPException(409, "Сначала выберите локальную модель в настройках")
+        try:
+            store.continue_research(job_id, request.brief, request.additional_budget)
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+        if request.start:
+            await start(job_id)
+        return store.detail(job_id)
 
     @app.post("/api/jobs/{job_id}/candidates/{candidate_id}/review")
     async def review(job_id: str, candidate_id: str, review: Review):
-        store.job(job_id)
+        job = store.job(job_id)
         with store.connect() as c:
             result = c.execute(
-                "UPDATE candidates SET status=? WHERE id=? AND job_id=?",
-                (review.status, candidate_id, job_id),
+                "UPDATE candidates SET status=?,review_revision=? WHERE id=? AND job_id=?",
+                (review.status, job["revision"], candidate_id, job_id),
             )
             if not result.rowcount:
                 raise HTTPException(404, "Кандидат не найден")
@@ -240,10 +254,19 @@ def create_app(data_dir: Path | None = None, run_worker: bool = True) -> FastAPI
 
     @app.get("/api/jobs/{job_id}/export")
     async def export(
-        job_id: str, format: Literal["md", "json", "pdf"] = "md", lang: Literal["en", "ru"] = "en"
+        job_id: str, format: Literal["md", "json", "pdf", "zip"] = "md", lang: Literal["en", "ru"] = "en"
     ):
         detail = store.detail(job_id)
         headers = {"Content-Disposition": f'attachment; filename="locus-{job_id}.{format}"'}
+        if format == "zip":
+            try:
+                content = await run_in_threadpool(archive.export_zip, store, job_id, lang)
+            except (OSError, ValueError) as exc:
+                raise HTTPException(
+                    409,
+                    "Cannot update the local archive. Check project folder permissions and symbolic links.",
+                ) from exc
+            return Response(content, media_type="application/zip", headers=headers)
         if format == "json":
             return PlainTextResponse(
                 dump(detail | {"analysis": reports.analysis(detail)}),
@@ -258,8 +281,13 @@ def create_app(data_dir: Path | None = None, run_worker: bool = True) -> FastAPI
     @app.delete("/api/jobs/{job_id}")
     async def delete(job_id: str):
         editable(job_id)
-        with store.connect() as c:
-            c.execute("DELETE FROM jobs WHERE id=?", (job_id,))
+        try:
+            await run_in_threadpool(archive.delete, store, job_id)
+        except (OSError, ValueError) as exc:
+            raise HTTPException(
+                409,
+                "Cannot delete the project folder. Database findings are preserved; check folder permissions and symbolic links.",
+            ) from exc
         return {"ok": True}
 
     dist = ROOT / "frontend" / "dist"

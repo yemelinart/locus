@@ -62,6 +62,10 @@ const reverse = Object.fromEntries(
   Object.entries(messages).map(([ru, en]) => [en, ru]),
 );
 const patterns: [RegExp, string][] = [
+  [
+    /^Критерии сохранены: версия (\d+). Прежние находки сохранены, обоснованность пересчитана.$/,
+    "Criteria saved: revision $1. Earlier findings retained; evidence reassessed.",
+  ],
   [/^Источник недоступен: HTTP (\d+)$/, "Source unavailable: HTTP $1"],
   [
     /^Не удалось проверить robots.txt \(HTTP (\d+)\); источник пропущен$/,
