@@ -229,7 +229,7 @@ export default function App() {
             <div>
               <strong>
                 {models.connected
-                  ? t("LM Studio подключён")
+                  ? t("Local AI connected", "Локальный ИИ подключён")
                   : t("Подключите локальный ИИ")}
               </strong>
               <span>

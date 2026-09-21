@@ -55,8 +55,15 @@ def qwen_prompt(system: str, user: str) -> str:
 class LocalModel:
     def __init__(self, settings: Settings):
         self.settings = settings
+        self.ollama = None
+        if settings.model_provider == "ollama":
+            from .ollama import OllamaModel
+
+            self.ollama = OllamaModel(settings)
 
     async def models(self) -> list[str]:
+        if self.ollama:
+            return await self.ollama.models()
         async with httpx.AsyncClient(timeout=5, trust_env=False, follow_redirects=False) as client:
             response = await client.get(self.settings.model_url + "/models")
             response.raise_for_status()
@@ -72,6 +79,10 @@ class LocalModel:
         return urlunsplit((p.scheme, p.netloc, "/api/v1", "", ""))
 
     async def capabilities(self):
+        if self.ollama:
+            return await self.ollama.capabilities()
+        if self.settings.model_provider == "openai_compatible":
+            return []
         async with httpx.AsyncClient(timeout=5, trust_env=False, follow_redirects=False) as client:
             response = await client.get(self.native_url + "/models")
             response.raise_for_status()
@@ -96,6 +107,8 @@ class LocalModel:
     async def complete(self, prompt: str, schema: type[BaseModel]):
         if not self.settings.model:
             raise ValueError("Выберите локальную модель в настройках")
+        if self.ollama:
+            return await self.ollama.complete(prompt, schema)
         system = SYSTEM.format(language="Russian" if self.settings.response_language == "ru" else "English")
         body = {
             "model": self.settings.model,
@@ -185,7 +198,7 @@ class LocalModel:
             raise ValueError("Локальная модель вернула пустой ответ")
         if choices[0].get("finish_reason") == "length":
             raise ValueError(
-                "Ответ модели обрезан: увеличьте лимит ответа или отключите reasoning в LM Studio"
+                "Model output was truncated. Increase the output token budget or reduce thinking."
             )
         content = (
             choices[0].get("text")

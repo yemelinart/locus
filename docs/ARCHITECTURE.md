@@ -120,3 +120,12 @@ SQLite schema 3 adds `jobs.revision`, `tasks.revision`, `candidates.review_revis
 `archive.py` uses SQLite as authority and maintains rebuildable `data/projects/<hex id>/` snapshots on events, shutdown of a search, startup and export. Writes use private permissions and temporary-file replacement. An archive lock serializes snapshot export/deletion. Fixed generated names, escaped HTML, restrictive offline CSP and symlink checks prevent document injection and path escape. Exports contain source metadata and recorded quotations, never whole scraped bodies. ZIP adds a locally generated PDF from the same snapshot. No archive import yet; exported copies and migration backups are independent of project deletion. The archive is not an independently crash-atomic database: interrupted writes are repaired from SQLite at startup/export.
 
 Large-scale performance, whole-site archival, page refresh and model-based semantic reevaluation of every old page are not implemented. Current reevaluation is quote/clue matching and filter review; new model work begins only after an explicit search start.
+
+
+## 0.3.1: provider routing
+
+`Settings.model_provider` defaults to `lmstudio` for stored 0.3 settings; no SQL migration is required. `LocalModel` routes Ollama to a separate native adapter while preserving existing LM Studio chat/raw/native modes. Generic OpenAI-compatible mode sends only compatible chat fields and never probes LM Studio-specific endpoints. Native LM Studio modes are rejected for other providers.
+
+Ollama uses loopback-only `/api/tags`, `/api/show`, `/api/chat`, no redirects or environment proxies. Discovery reads metadata only. Generation repeats `/api/show` preflight to reject remote aliases and non-chat models, maps per-request settings into `options`, checks truncation/completion and validates only final content against the schema. Thinking traces are not retained. Model files, global defaults, memory allocation and context size are not edited. The application trusts the configured local server; a deliberately misconfigured third-party proxy cannot be attested as local computation by HTTP metadata alone.
+
+Provider/address changes invalidate outstanding frontend probes with a request revision. Settings preserve the active provider; per-provider drafts last only while the dialog is open. Recommendation buttons affect only their own settings section. Research already running keeps its captured settings; saved provider changes apply to the next run.

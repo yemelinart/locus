@@ -109,13 +109,18 @@ def create_app(data_dir: Path | None = None, run_worker: bool = True) -> FastAPI
             try:
                 capabilities = await model.capabilities()
             except Exception:
-                capability_error = "Model capability discovery is unavailable on this server. Standard local chat remains available."
+                capability_error = (
+                    "Cannot verify this Ollama model. Select a downloaded chat model and refresh; inference requires successful local model verification."
+                    if settings.model_provider == "ollama"
+                    else "Model capability discovery is unavailable on this server. Standard local chat remains available."
+                )
             return {
                 "connected": True,
                 "models": ids,
                 "error": "",
                 "capabilities": capabilities,
                 "capability_error": capability_error,
+                "excluded_models": model.ollama.excluded_models if model.ollama else 0,
             }
         except Exception as exc:
             return {"connected": False, "models": [], "error": friendly_error(exc)}

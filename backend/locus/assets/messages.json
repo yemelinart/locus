@@ -209,5 +209,13 @@
   "Источник пользователя": "User-provided source",
   "Сервер недоступен": "Server unavailable",
   "Критерии обновлены. Можно продолжить поиск.": "Criteria updated. Ready to continue.",
-  "Заменён новыми критериями": "Superseded by updated criteria"
+  "Заменён новыми критериями": "Superseded by updated criteria",
+  "Нет соединения с локальным сервером. Проверьте, что приложение-провайдер запущено и адрес указан верно.": "Cannot connect to the local server. Check that your provider app is running and the address is correct.",
+  "Ответ модели обрезан. Увеличьте лимит ответа или уменьшите thinking.": "Model output was truncated. Increase the output token budget or reduce thinking.",
+  "Эта модель Ollama работает удалённо. Выберите скачанную локальную модель.": "This Ollama model runs remotely. Choose a downloaded local model.",
+  "Ollama не подтвердила генерацию текста этой моделью. Выберите локальную чат-модель или обновите Ollama.": "Ollama has not confirmed text generation for this model. Choose a local chat model or update Ollama.",
+  "Не удалось проверить модель Ollama. Выберите скачанную чат-модель и обновите список; генерация требует успешной проверки локальной модели.": "Cannot verify this Ollama model. Select a downloaded chat model and refresh; inference requires successful local model verification.",
+  "Режимы LM Studio нельзя использовать с другим провайдером.": "LM Studio modes cannot be used with another provider",
+  "Не удалось определить возможности модели на этом сервере. Стандартный локальный чат остаётся доступным.": "Model capability discovery is unavailable on this server. Standard local chat remains available.",
+  "Выбранный уровень thinking недоступен для этой модели. Обновите сведения о модели.": "This model does not expose the selected thinking level. Refresh capabilities."
 }

@@ -194,7 +194,7 @@ test("name hypotheses, sidebar analysis, PDF download and deletion", async ({
 test("native thinking follows reported capabilities and search controls show actual availability", async ({
   page,
 }) => {
-  await page.route("**/api/models*", (route) =>
+  await page.route("**/api/models**", (route) =>
     route.fulfill({
       json: {
         connected: true,
@@ -445,4 +445,161 @@ test("evidence support explains quotes, missing clues and archived candidates", 
   await request.delete(`/api/jobs/${job.id}`, {
     headers: { "X-Locus-Request": "1" },
   });
+});
+
+test("local providers reset incompatible controls, discover models and explain generation without changing search", async ({
+  page,
+  request,
+}) => {
+  const headers = { "X-Locus-Request": "1" };
+  const original = await (await request.get("/api/settings")).json();
+  const initial = {
+    ...original,
+    model_provider: "lmstudio",
+    model_url: "http://127.0.0.1:1234/v1",
+    model: "qwen3-local",
+    inference_mode: "qwen_no_thinking",
+    reasoning: "default",
+    structured_output: false,
+    results_per_query: 17,
+    search_region: "tr-tr",
+    safesearch: "on",
+  };
+  await request.put("/api/settings", { headers, data: initial });
+  const probes: any[] = [];
+  await page.route("**/api/models**", async (route) => {
+    const body =
+      route.request().method() === "POST"
+        ? route.request().postDataJSON()
+        : initial;
+    probes.push(body);
+    const ollama = body.model_provider === "ollama";
+    await route.fulfill({
+      json: {
+        connected: true,
+        error: "",
+        models: ollama ? ["qwen3:8b"] : ["qwen3-local"],
+        capabilities:
+          ollama && body.model
+            ? [
+                {
+                  key: "qwen3:8b",
+                  name: "Qwen 3",
+                  instances: [],
+                  max_context: 32768,
+                  reasoning_options: ["off", "on"],
+                  reasoning_default: "on",
+                  architecture: "qwen3",
+                },
+              ]
+            : [],
+      },
+    });
+  });
+  try {
+    await page.goto("/");
+    await page.getByRole("button", { name: "Settings", exact: true }).click();
+    const dialog = page.getByRole("dialog");
+    await dialog.getByRole("tab", { name: "Local AI", exact: true }).click();
+    await dialog.getByLabel("AI provider").selectOption("ollama");
+    await expect(
+      dialog.getByLabel("Server address", { exact: true }),
+    ).toHaveValue("http://127.0.0.1:11434");
+    await expect(dialog.getByLabel("Model", { exact: true })).toHaveValue("");
+    await expect(dialog.getByLabel("Inference mode")).toHaveCount(0);
+    await dialog.getByRole("button", { name: "Refresh models" }).click();
+    await dialog.getByLabel("Model", { exact: true }).selectOption("qwen3:8b");
+    await expect(
+      dialog.getByLabel("Thinking level").locator("option"),
+    ).toHaveCount(3);
+    await dialog
+      .getByRole("button", { name: "Apply recommended settings" })
+      .click();
+    await expect(dialog.getByLabel("Thinking level")).toHaveValue("off");
+    await dialog.getByText("Manual settings & guide", { exact: true }).click();
+    await expect(dialog).toContainText("not more factual");
+    await expect(dialog).toContainText("can damage exact quotes and names");
+    await expect(dialog.getByLabel("Top K", { exact: true })).toBeVisible();
+    const scan = await new AxeBuilder({ page })
+      .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
+      .analyze();
+    expect(scan.violations).toEqual([]);
+    await page.screenshot({
+      path: "../.qa/providers/ollama-guide.png",
+      fullPage: true,
+    });
+    await dialog.getByRole("button", { name: "Save settings" }).click();
+    await expect(dialog).not.toBeVisible();
+    const saved = await (await request.get("/api/settings")).json();
+    expect(saved.model_provider).toBe("ollama");
+    expect(saved.inference_mode).toBe("chat");
+    expect(saved.model).toBe("qwen3:8b");
+    expect(saved.results_per_query).toBe(17);
+    expect(saved.search_region).toBe("tr-tr");
+    expect(saved.safesearch).toBe("on");
+    expect(
+      probes.some(
+        (p) => p.model_provider === "ollama" && p.model === "qwen3:8b",
+      ),
+    ).toBe(true);
+    await page.getByRole("button", { name: "Settings", exact: true }).click();
+    await dialog.getByRole("tab", { name: "Local AI", exact: true }).click();
+    await dialog.getByLabel("AI provider").selectOption("openai_compatible");
+    await expect(
+      dialog.getByLabel("Server address", { exact: true }),
+    ).toHaveValue("http://127.0.0.1:8080/v1");
+    await expect(dialog.getByLabel("Thinking level")).toHaveCount(0);
+    await dialog.getByLabel("AI provider").selectOption("ollama");
+    await expect(dialog.getByLabel("Model", { exact: true })).toHaveValue(
+      "qwen3:8b",
+    );
+    await page.setViewportSize({ width: 390, height: 844 });
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+    ).toBe(true);
+  } finally {
+    await request
+      .put("/api/settings", { headers, data: original })
+      .catch(() => {});
+  }
+});
+
+test("a late model probe cannot populate a newly selected provider", async ({
+  page,
+}) => {
+  let release: (() => void) | undefined;
+  let started: (() => void) | undefined;
+  const began = new Promise<void>((resolve) => {
+    started = resolve;
+  });
+  await page.route("**/api/models/probe", async (route) => {
+    started?.();
+    await new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await route.fulfill({
+      json: {
+        connected: true,
+        error: "",
+        models: ["stale-lmstudio-model"],
+        capabilities: [],
+      },
+    });
+  });
+  await page.goto("/");
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByRole("tab", { name: "Local AI", exact: true }).click();
+  await dialog.getByRole("button", { name: "Refresh models" }).click();
+  await began;
+  await dialog.getByLabel("AI provider").selectOption("ollama");
+  const completed = page.waitForResponse("**/api/models/probe");
+  release?.();
+  await completed;
+  await expect(
+    dialog.getByLabel("Model", { exact: true }).locator("option"),
+  ).toHaveCount(1);
+  await expect(dialog).toContainText("Not connected");
 });

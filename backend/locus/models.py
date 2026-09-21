@@ -29,6 +29,7 @@ def local_endpoint(value: str) -> str:
 
 
 class Settings(Model):
+    model_provider: Literal["lmstudio", "ollama", "openai_compatible"] = "lmstudio"
     model_url: str = "http://127.0.0.1:1234/v1"
     model: str = Field(default="", max_length=240)
     temperature: float = Field(default=0.1, ge=0, le=2)
@@ -58,8 +59,24 @@ class Settings(Model):
 
     _local_url = field_validator("model_url", "searxng_url")(local_endpoint)
 
+    @model_validator(mode="before")
+    @classmethod
+    def provider_defaults(cls, value):
+        if isinstance(value, dict) and "model_url" not in value and value.get("model_provider") == "ollama":
+            return {**value, "model_url": "http://127.0.0.1:11434"}
+        return value
+
     @model_validator(mode="after")
     def compatible_mode(self):
+        parts = urlsplit(self.model_url)
+        if self.model_provider == "ollama":
+            if parts.path not in {"", "/api", "/v1"}:
+                raise ValueError("Use the Ollama server address, for example http://127.0.0.1:11434")
+            self.model_url = urlunsplit((parts.scheme, parts.netloc, "", "", ""))
+        elif not parts.path:
+            self.model_url += "/v1"
+        if self.model_provider != "lmstudio" and self.inference_mode != "chat":
+            raise ValueError("LM Studio modes cannot be used with another provider")
         if self.inference_mode == "qwen_no_thinking":
             if self.model and not re.search(r"qwen.?3", self.model, re.I):
                 raise ValueError("Режим без thinking предназначен только для семейства Qwen 3")

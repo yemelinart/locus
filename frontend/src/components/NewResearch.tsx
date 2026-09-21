@@ -497,7 +497,12 @@ export default function NewResearch({
         {!configured && (
           <div className="notice">
             <Cpu size={17} />
-            <span>{t("Перед запуском выберите модель LM Studio.")}</span>
+            <span>
+              {t(
+                "Choose a local model in settings before starting.",
+                "Перед запуском выберите локальную модель в настройках.",
+              )}
+            </span>
             <button type="button" onClick={openSettings}>
               {t("Подключить")}
               <ArrowUpRight size={14} />

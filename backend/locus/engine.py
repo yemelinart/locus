@@ -26,7 +26,7 @@ def grounded_facts(facts, body: str) -> list[dict]:
 
 def friendly_error(exc: Exception) -> str:
     if isinstance(exc, (httpx.ConnectError, httpx.ConnectTimeout)):
-        return "Нет соединения с локальным сервером. Проверьте, что LM Studio запущен и адрес указан верно."
+        return "Нет соединения с локальным сервером. Проверьте, что приложение-провайдер запущено и адрес указан верно."
     if isinstance(exc, (httpx.TimeoutException, TimeoutError)):
         return "Операция заняла слишком много времени. Прогресс сохранён."
     if isinstance(exc, httpx.HTTPStatusError):

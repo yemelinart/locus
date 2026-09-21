@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState, useRef, type FormEvent } from "react";
 import {
   Check,
   ChevronDown,
@@ -15,6 +15,27 @@ import { Field, Modal } from "./ui";
 import { api } from "../api";
 import { t, usePreferences, setPreferences, type Preferences } from "../i18n";
 
+const providerDefaults = {
+  lmstudio: "http://127.0.0.1:1234/v1",
+  ollama: "http://127.0.0.1:11434",
+  openai_compatible: "http://127.0.0.1:8080/v1",
+};
+const modelKeys = [
+  "model_provider",
+  "model_url",
+  "model",
+  "inference_mode",
+  "reasoning",
+  "structured_output",
+  "temperature",
+  "top_p",
+  "top_k",
+  "min_p",
+  "repeat_penalty",
+  "max_tokens",
+  "context_chars",
+  "model_timeout",
+] as const;
 export default function SettingsPanel({
   initial,
   models,
@@ -38,6 +59,41 @@ export default function SettingsPanel({
   const [catalog, setCatalog] = useState<SearchEngine[]>([]),
     [checks, setChecks] = useState<SearchRun[]>([]),
     [probing, setProbing] = useState(false);
+  const probeRevision = useRef(0);
+  const providerDrafts = useRef<
+    Partial<Record<Settings["model_provider"], Settings>>
+  >({});
+  const provider = settings.model_provider || "lmstudio";
+  const nativeControls =
+    provider === "ollama" || settings.inference_mode === "lmstudio";
+  function invalidateDiscovery() {
+    probeRevision.current++;
+    setChecking(false);
+    setDiscovery({ connected: false, models: [], error: "" });
+    setError("");
+  }
+  function chooseProvider(next: Settings["model_provider"]) {
+    providerDrafts.current[provider] = settings;
+    const saved = providerDrafts.current[next];
+    const patch = saved
+      ? Object.fromEntries(modelKeys.map((k) => [k, saved[k]]))
+      : {
+          model_provider: next,
+          model_url: providerDefaults[next],
+          model: "",
+          inference_mode: "chat",
+          reasoning: "default",
+          structured_output: false,
+        };
+    setSettings((s) => ({
+      ...s,
+      ...patch,
+      inference_mode: "chat",
+      reasoning: "default",
+      structured_output: false,
+    }));
+    invalidateDiscovery();
+  }
   const set = <K extends keyof Settings>(key: K, value: Settings[K]) =>
     setSettings((s) => ({ ...s, [key]: value }));
   useEffect(() => {
@@ -50,15 +106,17 @@ export default function SettingsPanel({
       m.key === settings.model ||
       m.instances.some((i) => i.id === settings.model),
   );
-  async function check() {
+  async function check(value = settings) {
+    const revision = ++probeRevision.current;
     setChecking(true);
     setError("");
     try {
-      setDiscovery(await probeModels(settings));
+      const result = await probeModels(value);
+      if (revision === probeRevision.current) setDiscovery(result);
     } catch (e) {
-      setError((e as Error).message);
+      if (revision === probeRevision.current) setError((e as Error).message);
     } finally {
-      setChecking(false);
+      if (revision === probeRevision.current) setChecking(false);
     }
   }
   async function submit(e: FormEvent) {
@@ -75,6 +133,20 @@ export default function SettingsPanel({
     }
   }
   function recommend() {
+    if (tab === "search") {
+      setSettings((s) => ({
+        ...s,
+        search_backends: ["duckduckgo", "brave"].filter((e) =>
+          catalog.some((c) => c.id === e && c.available),
+        ),
+        results_per_query: 8,
+        request_timeout: 20,
+        domain_delay: 1.5,
+        safesearch: "moderate",
+        search_region: "auto",
+      }));
+      return;
+    }
     setSettings((s) => ({
       ...s,
       temperature: 0.1,
@@ -89,19 +161,14 @@ export default function SettingsPanel({
       reasoning: capability?.reasoning_options.includes("off")
         ? "off"
         : "default",
-      inference_mode: capability?.reasoning_options.length
-        ? "lmstudio"
-        : /qwen.?3/i.test(s.model)
-          ? "qwen_no_thinking"
-          : "chat",
-      search_backends: ["duckduckgo", "brave"].filter((e) =>
-        catalog.some((c) => c.id === e && c.available),
-      ),
-      results_per_query: 8,
-      request_timeout: 20,
-      domain_delay: 1.5,
-      safesearch: "moderate",
-      search_region: "auto",
+      inference_mode:
+        provider !== "lmstudio"
+          ? "chat"
+          : capability?.reasoning_options.length
+            ? "lmstudio"
+            : /qwen.?3/i.test(s.model)
+              ? "qwen_no_thinking"
+              : "chat",
     }));
   }
   const number = (
@@ -275,10 +342,56 @@ export default function SettingsPanel({
               </span>
             </div>
             <Field
-              label={t("LM Studio server address", "Адрес сервера LM Studio")}
+              label={t("AI provider", "ИИ-провайдер")}
               hint={t(
-                "Enable Local Server in LM Studio. Only this computer’s addresses are accepted.",
-                "Включите Local Server в LM Studio. Поддерживаются только адреса этого компьютера.",
+                "Choose the app serving your model. All inference stays on this computer.",
+                "Выберите приложение, которое запускает модель. ИИ работает на этом компьютере.",
+              )}
+            >
+              {(id) => (
+                <select
+                  id={id}
+                  value={provider}
+                  onChange={(e) =>
+                    chooseProvider(e.target.value as Settings["model_provider"])
+                  }
+                >
+                  <option value="lmstudio">LM Studio</option>
+                  <option value="ollama">Ollama</option>
+                  <option value="openai_compatible">
+                    {t(
+                      "Other local server (OpenAI-compatible)",
+                      "Другой локальный сервер (OpenAI-compatible)",
+                    )}
+                  </option>
+                </select>
+              )}
+            </Field>
+            <div className="provider-guide">
+              {provider === "lmstudio"
+                ? t(
+                    "In LM Studio, enable the local server in Developer. Then refresh models and choose one below.",
+                    "В LM Studio включите локальный сервер в Developer. Затем обновите список моделей и выберите нужную.",
+                  )
+                : provider === "ollama"
+                  ? t(
+                      "Start Ollama and download a chat model there. Refresh models below. Locus does not install, download or load models during this check; remote/cloud models are not supported.",
+                      "Запустите Ollama и скачайте в ней чат-модель. Обновите список ниже. Проверка не устанавливает, не скачивает и не загружает модели в память; облачные модели не поддерживаются.",
+                    )
+                  : t(
+                      "For a local server such as llama.cpp: enter its OpenAI-compatible base address ending in /v1. It must provide /models and /chat/completions. Keep model loading and context settings in that server.",
+                      "Для локального сервера, например llama.cpp: укажите совместимый адрес, заканчивающийся на /v1. Нужна поддержка /models и /chat/completions. Загрузка модели и её контекст настраиваются в сервере.",
+                    )}
+            </div>
+            <Field
+              label={
+                provider === "lmstudio"
+                  ? t("LM Studio server address", "Адрес сервера LM Studio")
+                  : t("Server address", "Адрес сервера")
+              }
+              hint={t(
+                "Loopback only: localhost or 127.0.0.1, with the server port.",
+                "Только localhost или 127.0.0.1 с портом сервера.",
               )}
             >
               {(id) => (
@@ -287,8 +400,15 @@ export default function SettingsPanel({
                   required
                   value={settings.model_url}
                   onChange={(e) => {
-                    set("model_url", e.target.value);
-                    setDiscovery({ connected: false, models: [], error: "" });
+                    setSettings((s) => ({
+                      ...s,
+                      model_url: e.target.value,
+                      model: "",
+                      reasoning: "default",
+                      inference_mode: "chat",
+                      structured_output: false,
+                    }));
+                    invalidateDiscovery();
                   }}
                 />
               )}
@@ -299,15 +419,17 @@ export default function SettingsPanel({
                   <select
                     id={id}
                     value={settings.model}
-                    onChange={(e) =>
-                      setSettings((s) => ({
-                        ...s,
+                    onChange={(e) => {
+                      const next: Settings = {
+                        ...settings,
                         model: e.target.value,
                         reasoning: "default",
                         inference_mode: "chat",
                         structured_output: false,
-                      }))
-                    }
+                      };
+                      setSettings(next);
+                      if (provider === "ollama") void check(next);
+                    }}
                   >
                     <option value="">
                       {t("Choose a model", "Выберите модель")}
@@ -327,7 +449,7 @@ export default function SettingsPanel({
               <button
                 type="button"
                 className="button secondary"
-                onClick={check}
+                onClick={() => void check()}
                 disabled={checking}
               >
                 <RefreshCw size={15} className={checking ? "spin" : ""} />
@@ -336,6 +458,23 @@ export default function SettingsPanel({
             </div>
             {discovery.error && (
               <p className="small-muted">{t(discovery.error)}</p>
+            )}
+            {discovery.capability_error && (
+              <p className="small-muted">{t(discovery.capability_error)}</p>
+            )}
+            {!!discovery.excluded_models && (
+              <p className="small-muted">
+                {t("Remote models hidden: ", "Облачных моделей скрыто: ")}
+                {discovery.excluded_models}
+              </p>
+            )}
+            {discovery.connected && !discovery.models.length && (
+              <p className="small-muted">
+                {t(
+                  "No local chat models found. Download one in your provider app, then refresh.",
+                  "Локальные чат-модели не найдены. Скачайте модель в приложении-провайдере и обновите список.",
+                )}
+              </p>
             )}
             {capability && (
               <div className="capability-card">
@@ -356,54 +495,56 @@ export default function SettingsPanel({
                 ))}
               </div>
             )}
-            <Field
-              label={t("Inference mode", "Режим модели")}
-              hint={t(
-                "Native mode reads capabilities from LM Studio. The compatible Qwen mode closes its thinking block without editing the model.",
-                "Нативный режим читает возможности LM Studio. Совместимый режим Qwen закрывает блок thinking без изменения файлов модели.",
-              )}
-            >
-              {(id) => (
-                <select
-                  id={id}
-                  value={settings.inference_mode}
-                  onChange={(e) =>
-                    setSettings((s) => ({
-                      ...s,
-                      inference_mode: e.target
-                        .value as Settings["inference_mode"],
-                      structured_output: false,
-                      reasoning: "default",
-                    }))
-                  }
-                >
-                  <option value="chat">
-                    {t("Standard local chat", "Стандартный локальный чат")}
-                  </option>
-                  <option value="lmstudio" disabled={!capability}>
-                    {t(
-                      "LM Studio native controls",
-                      "Нативные настройки LM Studio",
-                    )}
-                  </option>
-                  <option
-                    value="qwen_no_thinking"
-                    disabled={!/qwen.?3/i.test(settings.model)}
+            {provider === "lmstudio" && (
+              <Field
+                label={t("Inference mode", "Режим модели")}
+                hint={t(
+                  "Native mode reads capabilities from LM Studio. The compatible Qwen mode closes its thinking block without editing the model.",
+                  "Нативный режим читает возможности LM Studio. Совместимый режим Qwen закрывает блок thinking без изменения файлов модели.",
+                )}
+              >
+                {(id) => (
+                  <select
+                    id={id}
+                    value={settings.inference_mode}
+                    onChange={(e) =>
+                      setSettings((s) => ({
+                        ...s,
+                        inference_mode: e.target
+                          .value as Settings["inference_mode"],
+                        structured_output: false,
+                        reasoning: "default",
+                      }))
+                    }
                   >
-                    {t(
-                      "Qwen 3 — thinking off (compatible)",
-                      "Qwen 3 — без thinking (совместимый)",
-                    )}
-                  </option>
-                </select>
-              )}
-            </Field>
-            {settings.inference_mode === "lmstudio" && (
+                    <option value="chat">
+                      {t("Standard local chat", "Стандартный локальный чат")}
+                    </option>
+                    <option value="lmstudio" disabled={!capability}>
+                      {t(
+                        "LM Studio native controls",
+                        "Нативные настройки LM Studio",
+                      )}
+                    </option>
+                    <option
+                      value="qwen_no_thinking"
+                      disabled={!/qwen.?3/i.test(settings.model)}
+                    >
+                      {t(
+                        "Qwen 3 — thinking off (compatible)",
+                        "Qwen 3 — без thinking (совместимый)",
+                      )}
+                    </option>
+                  </select>
+                )}
+              </Field>
+            )}
+            {nativeControls && (
               <Field
                 label={t("Thinking level", "Уровень thinking")}
                 hint={t(
-                  "Only values reported by this model are shown. More thinking can take longer and consume the output budget.",
-                  "Показаны только уровни, объявленные этой моделью. Более долгий thinking расходует время и лимит ответа.",
+                  "Available controls come from server metadata or documented model families. Default preserves model behaviour. More thinking can take longer and consume the output budget.",
+                  "Доступные режимы определяются по данным сервера или документации семейства модели. «По умолчанию» сохраняет поведение модели. Долгий thinking расходует время и лимит ответа.",
                 )}
               >
                 {(id) => (
@@ -435,6 +576,12 @@ export default function SettingsPanel({
                 )}
               </p>
             )}
+            <p className="small-muted">
+              {t(
+                "Usually you do not need to tune these values. Apply the recommended preset, run a short search, and change one parameter only when there is a specific problem. This preset favours restrained extraction; follow model-specific guidance if needed.",
+                "Обычно эти значения менять не нужно. Примените рекомендуемый шаблон, запустите короткий поиск и меняйте по одному параметру только при конкретной проблеме. Шаблон рассчитан на сдержанное извлечение; при необходимости учитывайте рекомендации автора модели.",
+              )}
+            </p>
             <button
               type="button"
               className="button secondary"
@@ -460,8 +607,8 @@ export default function SettingsPanel({
                   settings.inference_mode === "lmstudio" ? 1 : 2,
                   0.05,
                   t(
-                    "Lower values favour repeatable extraction. Start at 0.1.",
-                    "Низкие значения подходят для устойчивого извлечения. Начните с 0,1.",
+                    "Controls variation in wording. 0–0.2 is a starting point for extraction; higher values are more varied, not more factual. Follow your model’s guidance.",
+                    "Разнообразие ответов. 0–0,2 — отправная точка для извлечения. Выше — разнообразнее, но не достовернее. Учитывайте рекомендации модели.",
                   ),
                 )}
                 {number(
@@ -471,8 +618,8 @@ export default function SettingsPanel({
                   1,
                   0.01,
                   t(
-                    "Limits the pool of likely tokens. Usually leave at 0.9.",
-                    "Ограничивает набор вероятных токенов. Обычно достаточно 0,9.",
+                    "Restricts choices to tokens covering this share of probability. 0.9 = 90%. Usually leave it; avoid tuning it together with temperature.",
+                    "Ограничивает выбор словами/фрагментами с этой суммарной вероятностью. 0,9 = 90%. Обычно оставьте как есть и не меняйте одновременно с температурой.",
                   ),
                 )}
                 {number(
@@ -482,8 +629,8 @@ export default function SettingsPanel({
                   16384,
                   1,
                   t(
-                    "Includes thinking where the model uses it. Raise this if output is truncated.",
-                    "Включает thinking, если модель его использует. Увеличьте при обрезанном ответе.",
+                    "Maximum generated answer, measured in text fragments (tokens), not words. Start at 2400. Raise it for truncated JSON; thinking may consume this budget too.",
+                    "Максимум ответа в токенах — фрагментах текста, не словах. Начните с 2400. Увеличьте при обрезанном JSON; thinking тоже может расходовать этот лимит.",
                   ),
                 )}
                 {number(
@@ -493,8 +640,8 @@ export default function SettingsPanel({
                   64000,
                   1000,
                   t(
-                    "Text sent per page. This is not the model’s context size.",
-                    "Объём текста со страницы. Это не размер контекста модели.",
+                    "Characters read from each page for the model. Start at 16000. More text may reveal more evidence but needs more memory/context. Reduce it if the prompt is too long.",
+                    "Символы страницы, передаваемые модели. Начните с 16000. Больше текста — больше материала, но выше требования к памяти и контексту. Уменьшите, если запрос не помещается.",
                   ),
                 )}
                 {number(
@@ -504,11 +651,11 @@ export default function SettingsPanel({
                   1800,
                   1,
                   t(
-                    "Maximum wait for one inference. The research time budget still applies.",
-                    "Ожидание одного ответа. Общий лимит исследования также действует.",
+                    "Seconds allowed for one model response. Start at 300; increase for slower models. This does not make the model faster or extend the research time budget.",
+                    "Секунды ожидания одного ответа. Начните с 300, увеличьте для медленной модели. Это не ускоряет модель и не продлевает общий бюджет исследования.",
                   ),
                 )}
-                {settings.inference_mode === "lmstudio" && (
+                {nativeControls && (
                   <>
                     {number(
                       "top_k",
@@ -517,8 +664,8 @@ export default function SettingsPanel({
                       1000,
                       1,
                       t(
-                        "Number of candidate tokens. Native mode only.",
-                        "Число токенов-кандидатов. Только нативный режим.",
+                        "How many likely next-token choices remain. 40 is a starting point; lower is narrower. Usually leave unchanged. Sent only through native provider controls.",
+                        "Сколько вероятных вариантов следующего фрагмента оставить. Начальное значение — 40; меньше — уже выбор. Обычно менять не нужно. Передаётся через нативные настройки провайдера.",
                       ),
                     )}
                     {number(
@@ -528,8 +675,8 @@ export default function SettingsPanel({
                       1,
                       0.01,
                       t(
-                        "Filters tokens relative to the most likely token.",
-                        "Отсеивает токены относительно самого вероятного.",
+                        "Drops unlikely choices relative to the best one. 0 disables this filter; 0.05 is the preset. Usually leave unchanged.",
+                        "Отбрасывает маловероятные варианты относительно лучшего. 0 отключает фильтр; в шаблоне 0,05. Обычно оставьте как есть.",
                       ),
                     )}
                     {number(
@@ -539,8 +686,8 @@ export default function SettingsPanel({
                       2,
                       0.05,
                       t(
-                        "1 leaves repetition unchanged.",
-                        "1 не изменяет повторения.",
+                        "1 adds no penalty. Values above 1 discourage repetition, but can damage exact quotes and names. For research, usually keep 1.",
+                        "1 — без штрафа. Выше 1 уменьшает повторы, но может искажать точные цитаты и имена. Для исследования обычно оставьте 1.",
                       ),
                     )}
                   </>
@@ -554,14 +701,20 @@ export default function SettingsPanel({
                   onChange={(e) => set("structured_output", e.target.checked)}
                 />
                 {t(
-                  "Request JSON Schema (standard chat only)",
-                  "Запрашивать JSON Schema (только стандартный чат)",
+                  "Request JSON Schema (when supported)",
+                  "Запрашивать JSON Schema (при поддержке)",
                 )}
               </label>
               <p className="small-muted">
                 {t(
-                  "GPU, model loading and context allocation remain in LM Studio. Locus never changes them automatically.",
-                  "GPU, загрузка и выделение контекста настраиваются в LM Studio. Locus не меняет их автоматически.",
+                  "JSON Schema helps keep answers structured. Enable it only when supported; if the server rejects the format, turn it off. Locus validates every answer either way.",
+                  "JSON Schema помогает соблюдать структуру ответа. Включайте при поддержке сервером; при ошибке формата отключите. Locus в любом случае проверяет структуру ответа.",
+                )}
+              </p>
+              <p className="small-muted">
+                {t(
+                  "GPU, memory and the model’s context window are configured in your provider app. Locus sends generation settings per request; it does not edit model files or global provider settings.",
+                  "GPU, память и окно контекста настраиваются в приложении-провайдере. Locus передаёт параметры для отдельного запроса, не редактируя файлы модели и глобальные настройки.",
                 )}
               </p>
             </details>

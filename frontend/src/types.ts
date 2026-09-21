@@ -29,6 +29,7 @@ export type Brief = {
   budget: Budget;
 };
 export type Settings = {
+  model_provider: "lmstudio" | "ollama" | "openai_compatible";
   model_url: string;
   model: string;
   temperature: number;
@@ -140,6 +141,7 @@ export type Models = {
   error: string;
   capabilities?: ModelCapability[];
   capability_error?: string;
+  excluded_models?: number;
 };
 export type SearchEngine = {
   id: string;
