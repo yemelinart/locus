@@ -1,5 +1,7 @@
 # Private sharing / Передача друзьям
 
+Репозиторий проекта: [yemelinart/locus](https://github.com/yemelinart/locus) — Private. [Выпуски](https://github.com/yemelinart/locus/releases).
+
 ## What to share
 
 Use a clean source ZIP or a private GitHub repository. Do not upload the working directory wholesale. `data/` contains research, settings and database backups; `.qa/` contains local checks. `.venv/`, `node_modules/`, credentials and model weights must not be included.
