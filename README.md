@@ -1,136 +1,62 @@
 # Locus
 
-**Локальный исследователь публичных профилей и упоминаний. Бесплатный код, бесплатный поиск, только локальный ИИ.**
+### A name is a starting point.
 
-Статус: **0.3.1, рабочая ранняя версия**, не готовый универсальный поисковик и не доказанный лидер рынка.
+**Research public profiles and mentions with local AI. Keep the sources, refine the search, own the project.**
 
-Locus планирует поиск на выбранных языках, читает публичные HTML-страницы и сохраняет возможные совпадения с цитатами. Кандидаты с одинаковыми именами остаются отдельными. Наличие цитаты в источнике проверяется программно; истинность утверждения и принадлежность человеку требуют проверки пользователем.
+[Start here](START-HERE.md) · [Русский](README.ru.md) · [Sharing & private GitHub](docs/SHARING.md) · [Changelog](CHANGELOG.md)
 
-## Возможности версии 0.3
+Locus turns a name and a few known details into a research workspace. Your local model plans multilingual queries and extracts source-backed observations from accessible public pages. You review possible matches, add clues and continue the same project as your understanding improves.
 
-- Английский интерфейс по умолчанию и русский. Язык и тема сохраняются в браузере; новые результаты генерируются на выбранном языке.
-- Четыре палитры (Forest, Ocean, Sand, Graphite) и три яркости (Light, Soft, Dark).
-- Разделы настроек: Appearance, Local AI, Web search, About; рекомендации и пояснения параметров.
-- LM Studio и другие локальные серверы с OpenAI-compatible `/v1/chat/completions`. Облачные адреса модельного сервера запрещены.
-- Бесплатный прямой поиск через установленные адаптеры DDGS: DuckDuckGo, Brave, Google, Mojeek, Yahoo, Yandex; Wikipedia как дополнительный справочник. Каталог показывает фактическую доступность адаптера. В DDGS 9.13.0 Bing и Startpage недоступны и отключены в интерфейсе.
-- Проверка включённых источников нейтральным запросом, отдельные состояния выбора и ответа. Реальные обращения записываются в журнал исследования.
-- Необязательное подключение собственного локального SearXNG.
-- Имя, известные варианты и прежние имена, возможная смена фамилии, город, страна, ориентировочный диапазон годов, контекст.
-- Ограниченный предпросмотр гипотез транслитерации; локальная модель учитывает их при планировании. Гипотезы не считаются доказательством личности.
-- 12 языков запросов, домены включения/исключения, начальные ссылки, фильтр свежести выдачи.
-- Бюджет активного времени, запросов, страниц и этапов планирования. Достижение любого лимита останавливает работу.
-- Пауза и продолжение. После перезапуска задания остаются на паузе, модель не запускается сама.
-- Сохранение прочитанных источников, проверка точного присутствия цитат, пользовательская оценка кандидатов.
-- Добавление ориентиров и расширение бюджета на паузе.
-- Журнал действий и анализ по сайтам, поисковикам, времени, цитатам и непроверенным совпадениям.
-- Структурированные отчёты PDF и Markdown, выгрузка JSON; действия анализа, скачивания и удаления прямо в истории.
-- Получение объявленных возможностей модели из LM Studio: нативные уровни thinking и дополнительные параметры генерации.
-- Без аккаунта, платных API, облачных моделей, телеметрии и внешних ресурсов интерфейса.
+**0.3.2 · Early release · MIT-licensed code · Local web app**
 
-## Локальные ИИ-провайдеры
+## Why use Locus?
 
-В **Settings → Local AI** выберите провайдера, укажите адрес, нажмите **Refresh models** и выберите модель:
+- **Choose your own local AI.** LM Studio, Ollama or a compatible local server. Model selection, generation controls and supported reasoning settings are available in the app.
+- **Inspect the evidence.** Saved claims include quotations checked against fetched text and links to their sources. Candidate records remain separate for your review.
+- **Work across languages.** Queries in 12 supported languages, name variants and former names, with context such as education, organisations and public work.
+- **Control the search.** Select free search engines, include or exclude sites, and set limits for time, queries, pages and planning rounds. Pause and continue explicitly.
+- **Keep a continuing project.** Refine criteria, add clues, inspect activity and source coverage, and preserve revision history.
+- **Take the results with you.** Structured PDF and Markdown reports, JSON data and a project ZIP with an offline report and source excerpts.
+- **Make it comfortable.** English and Russian, four palettes and three brightness levels. No Locus account, telemetry or required paid search API.
 
-| Провайдер | Обычный адрес | Подключение |
-| --- | --- | --- |
-| LM Studio | `http://127.0.0.1:1234/v1` | Стандартный чат, нативные настройки LM Studio или совместимый режим Qwen |
-| Ollama | `http://127.0.0.1:11434` | Нативный API: список моделей, проверка метаданных, JSON и thinking |
-| Другой локальный сервер | например `http://127.0.0.1:8080/v1` | OpenAI-compatible `/models` и `/chat/completions`, например llama.cpp |
+These are product capabilities, not a claim of superiority. Search accuracy, recall and performance have not been benchmarked against commercial services.
 
-Для Ollama включите приложение/сервер и предварительно скачайте чат-модель в Ollama. Locus не устанавливает провайдеры, не скачивает веса и не загружает их в память при проверке списка. Для стандартного совместимого сервера используйте его реальный порт. Все адреса должны быть локальными; ключ облачного API не используется. Пользователь отвечает за то, чтобы произвольный совместимый сервер сам выполнял модель локально, а не был прокси в облако.
+## Start on your Mac
 
-Ollama-модели с `remote_host`/`remote_model` исключаются из списка. Перед **каждым** запросом генерации `/api/show` должен подтвердить генерацию текста и отсутствие удалённой модели; при неудаче запрос с исследованием не отправляется. Thinking берётся из объявленных сервером `thinking.values`; для старых серверов известные режимы Qwen 3 и GPT-OSS определяются по объявленному семейству и capability `thinking`. Для неизвестных семейств доступны только настройки модели по умолчанию. Для старой Ollama без необходимых метаданных может потребоваться обновление.
+This is currently a source distribution, **not a signed macOS `.app` or a one-click installer**.
 
-При смене провайдера специальные режимы и thinking сбрасываются; сохранённый адрес и модель текущего провайдера остаются после перезапуска приложения. В пределах открытого окна можно переключиться обратно к черновику адреса и модели. Кнопка рекомендуемых настроек ИИ больше не меняет веб-поиск; кнопка веб-поиска не меняет ИИ.
-
-Обычно параметры генерации менять не нужно. В **Manual settings & guide** есть пояснения температуры, Top P/K, Min P, штрафа повторений, лимита ответа, размера выдержки страницы, ожидания и JSON Schema. Рекомендованный набор — отправная точка, не универсальный оптимум для всех моделей. При обрезанном ответе увеличьте лимит вывода; при переполнении контекста уменьшите выдержку страницы; при медленной модели увеличьте ожидание. Контекст в токенах, GPU и память настраиваются в самом провайдере.
-
-Интеграция опирается на официальные описания [Ollama chat](https://docs.ollama.com/api/chat), [thinking](https://docs.ollama.com/capabilities/thinking), [метаданных моделей](https://github.com/ollama/ollama/blob/main/api/types.go), [LM Studio models](https://lmstudio.ai/docs/developer/openai-compat/models) и [llama.cpp server](https://github.com/ggml-org/llama.cpp/tree/master/tools/server).
-
-## Продолжающееся исследование и архив
-
-В карточке исследования нажмите **Refine & continue / Уточнить и продолжить**. На паузе можно изменить имя и известные варианты, контекст, школу/университет, организацию, публичные работы, языки, домены и ссылки. Сохранение создаёт новую версию в том же проекте. Неисполненная очередь прежних критериев отменяется; выполненные запросы и находки остаются в истории. Дополнительный бюджет прибавляется к уже выполненной работе. Поиск запускается только по вашему выбору.
-
-Шкала на карточке показывает **обоснованность совпадения, а не статистическую вероятность личности**. Совпадение имени в записанной цитате даёт слабую поддержку; один тип структурированных ориентиров усиливает её, два типа дают несколько подтверждающих ориентиров. Имя и ориентиры должны буквально присутствовать в цитатах; перевод, гипотеза транслитерации и мнение модели не повышают шкалу. Шкала не доказывает логическую связь цитат или принадлежность одному человеку. Незаполненные/не найденные сведения не равны противоречиям. Предположения модели о противоречиях отмечаются для проверки.
-
-Изменение критериев сразу пересчитывает шкалу по сохранённым цитатам. Источники вне новых фильтров доменов уходят в представление «В архиве по фильтрам»; снятие фильтра возвращает их. Ручные оценки сохраняются с пометкой о необходимости повторной проверки. Прежние страницы автоматически не перечитываются, карточки однофамильцев не объединяются. Старые оценки записываются в истории версий.
-
-Каждое исследование имеет папку `data/projects/<id>/`, которая обновляется по событиям поиска и при завершении. **Report → ZIP** экспортирует `index.html` для чтения в браузере без приложения, PDF, Markdown, JSON с историей и файлы цитат со ссылками и временем чтения. Это архив свидетельств из публичных профессиональных источников, **не полная копия сайтов**. В него не включаются фотографии, семейное досье или исходный текст каждой страницы целиком. SQLite остаётся основным хранилищем; папки восстанавливаются из него.
-
-Удаление исследования удаляет его записи и локальную папку. Ранее скачанные ZIP/PDF и резервные копии миграции остаются отдельными файлами. ZIP предназначен для просмотра и переноса материалов; автоматический импорт ZIP в Locus пока не реализован.
-
-## Быстрый запуск на macOS
-
-Требуются Python 3.11–3.14, Node.js 22.12+ (или поддерживаемый более новый), npm и LM Studio с установленной моделью. Для обычной работы Docker не нужен.
-
-1. Откройте LM Studio, выберите подходящую локальную модель и включите сервер на `127.0.0.1:1234`.
-2. В папке Locus запустите `./scripts/setup.sh` один раз.
-3. Запустите `./scripts/start.sh`. Откройте **http://127.0.0.1:8420**.
-4. В настройках нажмите «Проверить», выберите модель и сохраните настройки.
-5. Создайте поиск и нажмите «Начать поиск».
-
-Для запуска двойным щелчком на Mac предусмотрен **Start Locus.command**. Он запускает локальный процесс в Terminal. Закрытие процесса останавливает работу; прогресс сохраняется.
-
-Приложение не устанавливает и не скачивает модели. LM Studio может загрузить выбранную модель в память при первом запросе. Для первой проверки разумны контекст 16K, один запрос к модели одновременно и небольшой бюджет. Для Qwen 3.5/3.8, у которой LM Studio не предоставляет переключатель reasoning, выберите в Locus режим «Qwen 3 — без длинного thinking». Он применяет совместимый шаблон через локальный completion-интерфейс; файлы и глобальные настройки модели не меняются. Проверено с установленной Qwen3.8 27B Uncensored MLX. Для других семейств оставьте стандартный режим.
-
-### Что бесплатно, а что остаётся внешним
-
-Код Locus распространяется по MIT. Обязательных платных сервисов нет. Вы используете свой компьютер, электричество и интернет. Поисковые системы видят поисковые запросы, сайты — запросы чтения. «Локальный ИИ» не означает «интернет-поиск без сетевого следа».
-
-LM Studio — отдельное приложение со своей лицензией; лицензии весов моделей также отдельные. Его можно заменить совместимым сервером на этом же компьютере. Никакие модели не включены в дистрибутив Locus.
-
-## Ограничения, которые важно знать
-
-- Нет гарантии нахождения человека, полноты интернета или превосходства над конкурентами.
-- Поиск относится к публичным профессиональным профилям, образованию, публикациям и публичной деятельности. Приложение не предназначено для сбора чувствительных досье, утечек, домашних адресов и скрытых контактов.
-- Закрытые страницы, CAPTCHA, авторизация и платный доступ не обходятся; robots.txt соблюдается.
-- В версии 0.3 нет браузерного рендеринга JavaScript, OCR, PDF-парсинга, распознавания лиц и специальных интеграций с реестрами или закрытыми соцсетями.
-- Сниппет поиска не считается доказательством. Проверяются только цитаты из реально прочитанного текста.
-- Из страницы передаётся модели не больше настроенного числа символов; глубокие части длинной страницы могут быть пропущены. Чтение по фрагментам — следующий этап.
-- Один кандидат соответствует одной странице. Автоматического объединения кандидатов между источниками нет: это осознанно консервативный старт, а не готовое разрешение идентичности.
-- Проверка присутствия цитаты не является проверкой логического следования, правдивости страницы или личности.
-- Бюджеты — верхние пределы. Если новых направлений нет, поиск заканчивается раньше. Сон Mac и остановленный процесс не продолжают поиск в фоне.
-- Лимит времени отменяет клиентский запрос. Сервер модели должен поддерживать отмену при разрыве соединения; поведение конкретной модели проверяется отдельно. Locus не выгружает чужие модели и не меняет глобальные настройки LM Studio.
-- В текущей версии настройки генерации и источника применяются при следующем запуске/продолжении задания. Новые ориентиры влияют на следующие шаги; уже сохранённые карточки автоматически не переоцениваются.
-- База локальная и не зашифрована самим приложением. Учитывайте настройки защиты диска macOS.
-
-## Настройки thinking и поиска
-
-В **Settings → Local AI → Refresh models** приложение читает `/api/v1/models` без запуска ИИ. В режиме **LM Studio native controls** список thinking формируется из `capabilities.reasoning.allowed_options`, включая значения, которые объявляет конкретная версия сервера. Перед генерацией выбранный уровень проверяется повторно. Если модель не предоставляет эти параметры, интерфейс не обещает их поддержку. Для установленной Qwen Uncensored остаётся совместимый режим без thinking.
-
-Кнопка **Apply recommended settings** заполняет форму; примените её кнопкой **Save settings**. Рекомендация — отправная точка, не результат сравнительного тестирования всех моделей. GPU, размер загруженного контекста и сами файлы модели остаются под управлением LM Studio.
-
-В **Web search** включённый переключатель означает выбор пользователя. «Responded» означает ответ на последний ручной тест в этой сессии, не гарантированное постоянное соединение. При работе системы чередуются; у логического запроса максимум одна резервная попытка. Обе попытки отражаются в анализе. Лимит запросов относится к логическим запросам, не сумме обращений ко всем движкам. Новые аналитические данные не восстанавливаются задним числом для старых исследований.
-
-## Хранение и обновление
-
-По умолчанию данные находятся в `data/locus.sqlite3`, рядом могут быть файлы SQLite WAL/SHM. Для резервной копии остановите сервер и скопируйте всю папку `data`. Путь можно изменить переменной `LOCUS_DATA_DIR`.
-
-Исходники не зависят от базы: установка зависимостей и новая сборка не удаляют исследования. После обновления исходников запустите `scripts/setup.sh` и затем `scripts/start.sh`. Пока нет автоматического обновления и подписанного macOS-дистрибутива. При переходе с 0.1 схема обновляется до версии 2, предварительно создаётся `data/locus.v1.backup.sqlite3`. Существующие записи и настройки сохраняются. Версия схемы базы проверяется перед открытием; более новая неподдерживаемая схема не изменяется.
-
-## Разработка и проверка
+1. Install [Python](https://www.python.org/downloads/) 3.11–3.14 (3.12 recommended), [Node.js](https://nodejs.org/en/download) 22.12+ or a supported newer version, and [LM Studio](https://lmstudio.ai/) or [Ollama](https://ollama.com/). Download a chat model in that provider.
+2. Extract the Locus ZIP into a folder you will keep, for example `~/Applications/Locus`. Do not run inside the ZIP.
+3. Open **Start Locus.command**. The first run installs dependencies and builds the interface, using an internet connection. Alternatively use the terminal commands below.
+4. Open **http://127.0.0.1:8420**. Follow **About & guide**, connect your local model in Settings and check web search availability.
+5. Create a research project, review its limits and explicitly start it. Merely opening Locus does not start research.
 
 ```sh
 ./scripts/setup.sh
-.venv/bin/pytest -q
-.venv/bin/ruff check backend
-cd frontend
-npm run build
-npx playwright install chromium
-npm run test:e2e
+./scripts/start.sh
 ```
 
-Для установленного Chrome: `LOCUS_BROWSER_CHANNEL=chrome npm run test:e2e`.
+Keep the server terminal open while working. Pause an active search before closing it. The startup guide has first-run troubleshooting and update instructions: [English](START-HERE.md) / [Русский](START-HERE.ru.md).
 
-Браузерные тесты используют отдельную временную базу. Они не запускают реальный поиск и не обращаются к облачным моделям. Для разработки интерфейса отдельно запустите `npm run dev` в `frontend`; `/api` перенаправляется на локальный backend.
+## What is local, and what uses the internet?
 
-Схема API: `/api/openapi.json`. Сервер запускается только на loopback. Поддерживается **один процесс backend**; несколько uvicorn workers с текущим планировщиком запускать нельзя.
+Model inference uses a server on your computer. The database and research archives are stored in the local `data/` folder. Locus does not send research to a cloud LLM and does not collect telemetry. A custom compatible model server must itself run locally, rather than proxying requests to a cloud service.
 
-## Документация
+Web search needs the internet. Search providers receive your queries, and visited sites receive page requests. Locus does not encrypt the local database itself. Providers and model weights have their own licences; no model weights are included.
 
-- [Архитектура и принятые решения](docs/ARCHITECTURE.md)
-- [Изученные решения и источники](docs/RESEARCH.md)
-- [План развития и критерии качества](docs/ROADMAP.md)
-- [Результаты проверок](docs/VALIDATION.md)
-- [Модель безопасности](docs/SECURITY.md)
-- [Изменения](CHANGELOG.md)
+## Read the results with care
+
+A quotation supports traceability, not truth or identity. The evidence meter describes support from supplied clues; it is **not an identity probability**. Review the sources and contradictions before confirming a candidate.
+
+Coverage is limited by search indexes, robots rules and accessible public HTML. Login-only content, blocked pages and JavaScript-dependent content may be unavailable. Direct social-network connectors, PDF/OCR ingestion, a validated 8 GB memory profile and a signed desktop installer are not included in this release.
+
+Locus is for public, non-sensitive professional, educational and publication research. It does not provide private contact discovery, residential addresses, leaked databases or face identification.
+
+## Share and contribute
+
+A private GitHub repository can hold the code and downloadable releases. Access requires an invited GitHub account; the URL alone does not grant access. Every user runs their own local copy. Do not share the working folder or `data/` as an application distribution. See [sharing instructions](docs/SHARING.md).
+
+[Contributing](CONTRIBUTING.md) · [Architecture](docs/ARCHITECTURE.md) · [Validation](docs/VALIDATION.md) · [Roadmap](docs/ROADMAP.md) · [Security](docs/SECURITY.md)
+
+**VibeCoded by Sergey Yemelin.** Built and reviewed with ChatGPT 6 Astra. Review is not a guarantee of correctness or security. Source code is distributed under the [MIT licence](LICENSE).

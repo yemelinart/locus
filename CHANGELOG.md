@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.2 — 2026-09-21
+
+- Added a bilingual first-visit introduction and reusable About & guide page, with capabilities, four setup steps and practical limitations. Search form remains separate.
+- Added an English product README, retained the Russian reference, and wrote first-run, update and private-sharing guides.
+- Setup now checks prerequisites before installing dependencies. Source releases exclude personal research and local runtime files.
+
 ## 0.3.1 — 2026-09-21
 
 - Выбор LM Studio, Ollama или другого локального OpenAI-compatible сервера с редактируемым адресом и списком моделей.

@@ -1,5 +1,7 @@
 import { t, usePreferences, setPreferences } from "./i18n";
 import { Trash2, ChartNoAxesCombined, Download } from "lucide-react";
+import Welcome from "./components/Welcome";
+import { BookOpen } from "lucide-react";
 import ReportDialog from "./components/ReportDialog";
 import { useEffect, useState } from "react";
 import {
@@ -28,7 +30,23 @@ export default function App() {
   const [deleteTarget, setDeleteTarget] = useState<Job | null>(null);
   const [exportTarget, setExportTarget] = useState<string | null>(null);
   const [jobs, setJobs] = useState<Job[]>([]);
-  const [selected, setSelected] = useState<string | null>(null);
+  const [selected, setSelectedState] = useState<string | null>(null);
+  const [guideOpen, setGuideOpen] = useState(() => {
+    try {
+      return localStorage.getItem("locus-welcome-seen") !== "1";
+    } catch {
+      return true;
+    }
+  });
+  const setSelected = (id: string | null) => {
+    setSelectedState(id);
+    setGuideOpen(false);
+    try {
+      localStorage.setItem("locus-welcome-seen", "1");
+    } catch {
+      /* Storage can be unavailable. */
+    }
+  };
   const [job, setJob] = useState<Detail | null>(null);
   const [settings, setSettings] = useState<Settings | null>(null);
   const [models, setModels] = useState<Models>({
@@ -37,6 +55,7 @@ export default function App() {
     error: "",
   });
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsSection, setSettingsSection] = useState("appearance");
   const [budgetOpen, setBudgetOpen] = useState(false);
   const [budget, setBudget] = useState<Budget>({
     minutes: 30,
@@ -144,12 +163,19 @@ export default function App() {
         </button>
         <div className="nav-caption">{t("РАБОЧЕЕ ПРОСТРАНСТВО")}</div>
         <button
-          className={`nav-item ${!selected ? "active" : ""}`}
+          className={`nav-item ${!selected && !guideOpen ? "active" : ""}`}
           onClick={() => setSelected(null)}
         >
           <Layers3 size={18} />
           {t("Исследования")}
           <span>{jobs.length}</span>
+        </button>
+        <button
+          className={`nav-item ${guideOpen ? "active" : ""}`}
+          onClick={() => setGuideOpen(true)}
+        >
+          <BookOpen size={18} />
+          {t("About & guide", "О программе и гайд")}
         </button>
         <div className="history-title">{t("Последние поиски")}</div>
         <div className="job-list">
@@ -242,7 +268,10 @@ export default function App() {
           </div>
           <button
             className="nav-item settings-nav"
-            onClick={() => setSettingsOpen(true)}
+            onClick={() => {
+              setSettingsSection("appearance");
+              setSettingsOpen(true);
+            }}
             disabled={!settings}
           >
             <Settings2 size={18} />
@@ -262,14 +291,23 @@ export default function App() {
             <span>{t("Исследования")}</span>
             <span>/</span>
             <strong>
-              {selected
-                ? job?.id === selected
-                  ? job.name
-                  : t("Загрузка…")
-                : t("Новый поиск")}
+              {guideOpen
+                ? t("About & guide", "О программе и гайд")
+                : selected
+                  ? job?.id === selected
+                    ? job.name
+                    : t("Загрузка…")
+                  : t("Новый поиск")}
             </strong>
           </div>
           <div className="topbar-right">
+            <button
+              className="icon-button guide-mobile"
+              aria-label={t("About & guide", "О программе и гайд")}
+              onClick={() => setGuideOpen(true)}
+            >
+              <BookOpen size={17} />
+            </button>
             <button
               className="language-toggle"
               aria-label={t(
@@ -288,7 +326,9 @@ export default function App() {
               <ShieldCheck size={14} />
               LOCAL FIRST
             </span>
-            {job && selected === job.id && <Badge status={job.status} />}
+            {!guideOpen && job && selected === job.id && (
+              <Badge status={job.status} />
+            )}
           </div>
         </header>
         <main>
@@ -309,6 +349,14 @@ export default function App() {
               <Loader2 className="spin" />
               {t("Загрузка локального пространства…")}
             </div>
+          ) : guideOpen ? (
+            <Welcome
+              start={() => setSelected(null)}
+              settings={() => {
+                setSettingsSection("model");
+                setSettingsOpen(true);
+              }}
+            />
           ) : selected ? (
             job && job.id === selected ? (
               <ResearchView
@@ -364,7 +412,10 @@ export default function App() {
             <NewResearch
               busy={busy}
               configured={!!settings?.model}
-              openSettings={() => setSettingsOpen(true)}
+              openSettings={() => {
+                setSettingsSection("model");
+                setSettingsOpen(true);
+              }}
               onCreate={(brief) =>
                 void run(async () => {
                   const created = await api<Job>("/jobs", "POST", brief);
@@ -382,6 +433,7 @@ export default function App() {
       {settingsOpen && settings && (
         <SettingsPanel
           initial={settings}
+          initialSection={settingsSection}
           models={models}
           probeModels={(s) => api<Models>("/models/probe", "POST", s)}
           onSave={saveSettings}

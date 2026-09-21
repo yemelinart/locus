@@ -1,6 +1,12 @@
 import { test, expect } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() =>
+    localStorage.setItem("locus-welcome-seen", "1"),
+  );
+});
+
 test("create, refine, extend, reload and delete a real persisted local search", async ({
   page,
 }) => {

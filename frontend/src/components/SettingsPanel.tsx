@@ -38,19 +38,21 @@ const modelKeys = [
 ] as const;
 export default function SettingsPanel({
   initial,
+  initialSection = "appearance",
   models,
   probeModels,
   onSave,
   close,
 }: {
   initial: Settings;
+  initialSection?: string;
   models: Models;
   probeModels: (settings: Settings) => Promise<Models>;
   onSave: (s: Settings) => Promise<void>;
   close: () => void;
 }) {
   const prefs = usePreferences();
-  const [tab, setTab] = useState("appearance");
+  const [tab, setTab] = useState(initialSection);
   const [settings, setSettings] = useState(initial),
     [discovery, setDiscovery] = useState(models);
   const [saving, setSaving] = useState(false),
