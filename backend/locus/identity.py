@@ -7,6 +7,8 @@ from typing import Literal
 from pydantic import Field
 
 from .models import Model
+from .names import name_in
+from .places import city_equivalent, country_equivalent, search_spellings
 
 
 def normalized(value):
@@ -52,6 +54,8 @@ class IdentityCheck(Model):
     observed: str = Field(default="", max_length=160)
     same_subject: bool = False
     same_place: bool = False
+    observed_country: str = Field(default="", max_length=120)
+    observed_region: str = Field(default="", max_length=120)
     birth_year: int | None = Field(default=None, ge=1850, le=2100)
 
 
@@ -69,7 +73,7 @@ def validate_checks(checks, brief, candidate_name, body, excerpt):
                 and q in " ".join(body.split())
                 and q in " ".join(excerpt.split())
                 and c.same_subject
-                and re.search(r"(?<!\w)" + re.escape(normalized(candidate_name)) + r"(?!\w)", normalized(q))
+                and name_in(q, [candidate_name])
                 and c.observed.strip()
                 and normalized(c.observed) in normalized(q)
             )
@@ -98,8 +102,20 @@ def validate_checks(checks, brief, candidate_name, body, excerpt):
                             brief.year_to is None or year <= brief.year_to
                         )
                         relation = "supports" if inside else "contradicts"
-                elif relation == "supports" and not c.same_place:
-                    relation = "unknown"
+                elif relation == "supports":
+                    qualifiers_grounded = all(
+                        not v or normalized(v) in normalized(q)
+                        for v in (c.observed_country, c.observed_region)
+                    )
+                    same = (
+                        city_equivalent(
+                            brief.city, brief.country, c.observed, c.observed_country, c.observed_region
+                        )
+                        if field == "city"
+                        else country_equivalent(brief.country, c.observed)
+                    )
+                    if not c.same_place or not same or not qualifiers_grounded:
+                        relation = "unknown"
                 elif relation == "contradicts":
                     # A different place is not a disproof of past connections, even if the LLM says so.
                     denial = re.search(
@@ -128,7 +144,10 @@ def discovery_priority(result, brief):
     """Triage only: snippets affect reading order, never candidate identity evidence."""
     text = normalized(result.get("title", "") + " " + result.get("snippet", ""))
     score = 0
-    for value, weight in [(brief.name, 3), (brief.city, 5), (brief.country, 2)]:
+    score += 3 if name_in(text, [brief.name, *brief.aliases]) else 0
+    if any(normalized(v) in text for v in search_spellings(brief.city, brief.country)):
+        score += 5
+    for value, weight in [(brief.country, 2)]:
         if value.strip() and normalized(value) in text:
             score += weight
     return score
@@ -136,7 +155,11 @@ def discovery_priority(result, brief):
 
 IDENTITY_INSTRUCTIONS = (
     "For EACH required identity criterion return identity_checks with field, relation, quote, observed, "
-    "same_subject, same_place and birth_year when applicable. Missing evidence is UNKNOWN, never support. "
+    "same_subject, same_place, observed_country, observed_region and birth_year when applicable. "
+    "observed must be the PLACE NAME as written in the quote, not a paraphrase or desired location. "
+    "observed_country/observed_region must be verbatim qualifiers of THAT place from the SAME quote, or empty. "
+    "Never copy these qualifiers from the user brief or from a different place in the quote. "
+    "Missing evidence is UNKNOWN, never support. "
     "City means a biographical connection to the specified city (origin, former residence, education or work), "
     "not necessarily current residence. Respect every supplied region/country qualifier; Alexandria in Egypt "
     "is not Oleksandriia in Kirovohrad. Recognize genuine translations/transliterations of the SAME place, "

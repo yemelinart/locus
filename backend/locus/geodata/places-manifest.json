@@ -1,0 +1,15 @@
+{
+  "geonames": "https://download.geonames.org/export/dump/",
+  "cldr": "https://github.com/unicode-org/cldr-json",
+  "inputs_sha256": {
+    "UA.zip": "f9921ae0902ef43ce48106ed9e1ae45a48ebde93e9eb925569b84a918aaccffc",
+    "UNICODE-LICENSE.txt": "220ba0e1c43b99530d2d5bdb892a99dca0989414f51ab695ecd90163eaa1ec3b",
+    "admin1CodesASCII.txt": "1da92a6323a5fec3176f3f743bf4cf4040fd56a876da55e46fbca23c863aa60a",
+    "cities15000.zip": "4337eb85ddef43a7d6164ba4d49379c1ef866ce5ceacda0fb1378abfc8cea2dd",
+    "countryInfo.txt": "93bafc525813f22e4711ff9ed6d626343094ce48c26388dc7c49189b3d7d5512",
+    "territories-en.json": "158c1d575308f7e46912edbeda435c8fe2ef5dad280798231f3a432e406b1807",
+    "territories-ru.json": "305ba1f9eecb1b0151ab081a111aaa8a5898d38c9d57bfbfa125734e508a2389",
+    "territories-uk.json": "be0b7a34fb070cb4e7749a69eed93e62af6acf7a298437d4eb436ef0163284af"
+  },
+  "place_count": 34146
+}

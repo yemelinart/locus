@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.6.1 — 2026-09-22
+
+- Fixed empty ddgs responses being treated as connection failures and prematurely pausing research.
+- Added an attributed offline GeoNames/CLDR place reference. Required city/country matches now receive a deterministic check independent of the model's same-place verdict; ambiguous locations stay unresolved.
+- Recognize reversed full names and bounded Slavic patronymics; preserve name tokens and reject candidate-name substitutions. Added Alexey/Oleksii hypotheses.
+- Normalize malformed search quotation marks, cap unanchored planning queries, use geographic aliases in retrieval and investigate missing criteria before namesake biography expansion.
+- Review method v4 invalidates older assessments until explicit resume. Database schema stays 5; no automatic search restart.
+- Checkpoint the core identity/claim review before optional narrative generation, so a cancelled or timed-out observation cannot erase the useful result.
+- Added regression cases, an unseeded public-target discovery harness and a candid market/product audit. No comparative reliability or market-superiority claim.
+
 ## 0.6.0 — 2026-09-21
 
 - Separated diverse retrieval hypotheses from mandatory result criteria. Added bidirectional name variants and missing-criterion queries; removed automatic addition of all original geographic phrases to every query.

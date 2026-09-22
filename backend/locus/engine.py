@@ -8,10 +8,11 @@ from contextlib import suppress
 import httpx
 
 from .db import Store, dump, now, uid
-from .discovery import portfolio, verification_queries
+from .discovery import DISCOVERY_TAG, portfolio, verification_queries
 from .identity import discovery_priority, resolution
 from .models import Brief, Extraction, Plan, Query
 from .names import variants
+from .places import prompt_context
 from .providers.local_model import LocalModel
 from .providers.search import Search
 from .trails import relevant_links
@@ -171,7 +172,7 @@ class Engine:
             prior_detail = self.store.detail(job_id)
             prior_queries = prior_detail["queries"]
             if prior_queries and not any(
-                q["payload"].get("reason", "").startswith("Discover using a name") for q in prior_queries
+                q["payload"].get("reason", "").startswith(DISCOVERY_TAG) for q in prior_queries
             ):
                 scheduled = sum(q["state"] in {"pending", "running", "done", "failed"} for q in prior_queries)
                 room = min(4, max(0, brief.budget.queries - scheduled))
@@ -258,6 +259,8 @@ class Engine:
                         "Do not repeat prior queries. Return an empty queries array when no useful new direction remains.\n"
                         + "User brief: "
                         + brief.model_dump_json(exclude={"budget", "seed_urls"})
+                        + "\nOFFLINE PLACE REFERENCE: "
+                        + json.dumps(prompt_context(brief), ensure_ascii=False)
                         + "\nName spellings (hypotheses, not identity facts): "
                         + dump(variants(brief))
                         + "\nPrevious queries: "
@@ -467,23 +470,19 @@ class Engine:
                         # These observations are not shown in the profile overview; avoid an extra LLM pass.
                         validated["note"] = ""
                         validated["note_facts"] = []
-                    if validated["note"]:
-                        references = [value["facts"][i] for i in validated["note_facts"]]
-                        verdict = await bounded(
-                            model.complete(
-                                observation_prompt(validated["note"], references), ObservationReview
-                            )
-                        )
-                        if not observation_allowed(validated["note"], verdict):
-                            validated["note"] = ""
-                            validated["note_facts"] = []
-                            validated["note_withheld"] = True
-                    self.store.save_audit(candidate_id, job["revision"], validated, settings.model)
+                    # Preserve the core result before an optional narrative call can time out.
+                    self.store.save_audit(
+                        candidate_id,
+                        job["revision"],
+                        validated | {"note": "", "note_facts": []},
+                        settings.model,
+                    )
                     # A re-run after cancellation cannot add a second copy of the same query.
                     identity_state = resolution(validated["identity_checks"], bool(validated["name_quote"]))
                     if (
                         row["status"] != "rejected"
                         and identity_state != "conflicting"
+                        and validated["name_relation"] in {"same_spelling", "plausible_variant"}
                         and not validated["conflicts"]
                     ):
                         with self.store.connect() as c:
@@ -501,6 +500,18 @@ class Engine:
                                 self.store.enqueue(
                                     job_id, "search", normalize(query.query).casefold(), query.model_dump()
                                 )
+                    if validated["note"]:
+                        references = [value["facts"][i] for i in validated["note_facts"]]
+                        verdict = await bounded(
+                            model.complete(
+                                observation_prompt(validated["note"], references), ObservationReview
+                            )
+                        )
+                        if not observation_allowed(validated["note"], verdict):
+                            validated["note"] = ""
+                            validated["note_facts"] = []
+                            validated["note_withheld"] = True
+                    self.store.save_audit(candidate_id, job["revision"], validated, settings.model)
                     if validated["note"]:
                         self.store.event(
                             job_id,
@@ -554,6 +565,8 @@ class Engine:
                     with self.store.connect() as c:
                         # One task per source: cancellation before this synchronous transaction is safe to retry.
                         for candidate in extraction.candidates:
+                            if not contains_name(candidate.name, names(brief)):
+                                continue
                             facts = [
                                 f
                                 for f in grounded_facts(candidate.facts, excerpt)

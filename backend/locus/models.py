@@ -177,6 +177,12 @@ class Query(Model):
     language: str = Field(default="en", max_length=10)
     reason: str = Field(default="", max_length=300)
 
+    @field_validator("query")
+    @classmethod
+    def clean_quotes(cls, value):
+        # Some local models double-escape operators inside otherwise valid JSON.
+        return value.replace('\\"', '"').replace("“", '"').replace("”", '"').strip()
+
 
 class Plan(Model):
     queries: list[Query] = Field(default_factory=list, max_length=24)

@@ -8,7 +8,17 @@
 
 Locus turns a name and a few known details into a research workspace. Your local model plans multilingual queries and extracts source-backed observations from accessible public pages. You review possible matches, add clues and continue the same project as your understanding improves.
 
-**0.6.0 · Early release · MIT-licensed code · Local web app**
+**0.6.1 · Early release · MIT-licensed code · Local web app**
+
+## New in 0.6.1
+
+Fixed empty web results incorrectly stopping research as a connection failure.
+An offline place reference now checks city/country equivalence separately from
+the local model. Name-order/patronymic handling and contextual queries were
+improved. Older assessments wait for re-review on an explicit resume.
+See the [engine and market audit](docs/V061-SEARCH-AUDIT.md) for reproduced
+failures, the comparison with existing tools and the work still needed.
+Place data has [separate attribution](backend/locus/geodata/README.md).
 
 ## New in 0.6
 

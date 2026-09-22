@@ -47,6 +47,8 @@ RUS = dict(
 )
 UKR = RUS | {"г": "h", "ґ": "g", "и": "y", "і": "i", "ї": "yi", "є": "ye"}
 GIVEN = {
+    "алексей": ["Олексій", "Alexey", "Alexei", "Aleksei", "Aleksey", "Oleksii", "Oleksiy"],
+    "олексій": ["Алексей", "Oleksii", "Oleksiy", "Alexey", "Alexei"],
     "сергей": ["Sergey", "Sergei", "Сергій", "Sergii", "Serhii", "Sergiy"],
     "сергій": ["Serhii", "Sergii", "Sergiy", "Сергей", "Sergey"],
     "александр": ["Alexander", "Aleksandr", "Oleksandr", "Олександр"],
@@ -58,6 +60,31 @@ GIVEN = {
     "дмитрий": ["Dmitry", "Dmitri", "Dmytro"],
     "дмитро": ["Dmytro", "Dmitry"],
 }
+
+
+def name_pattern(name):
+    """Token-preserving spelling compatibility, never proof of identity."""
+    words = name.split()
+    exact = r"\s+".join(re.escape(w) for w in words)
+    choices = [exact]
+    if len(words) == 2:
+        first, last = map(re.escape, words)
+        choices.append(last + r"(?:,\s*|\s+)" + first)
+        if re.fullmatch(r"[А-Яа-яЁёІіЇїЄєҐґ-]+", "".join(words)):
+            patronymic = r"[а-яёіїєґ-]+(?:ович|евич|йович|овна|евна|івна|ївна|ична)"
+            choices.extend(
+                [
+                    first + r"\s+" + patronymic + r"\s+" + last,
+                    last + r"(?:,\s*|\s+)" + first + r"\s+" + patronymic,
+                ]
+            )
+    return r"(?<!\w)(?:" + "|".join(choices) + r")(?!\w)"
+
+
+def name_in(text, options, whole=False):
+    text = unicodedata.normalize("NFKC", text).strip()
+    match = re.fullmatch if whole else re.search
+    return any(match(name_pattern(n), text, re.I) for n in options if n.strip())
 
 
 def variants(brief: Brief) -> list[dict]:
