@@ -7,6 +7,7 @@ from contextlib import suppress
 import httpx
 
 from .db import Store, dump, now, uid
+from .identity import anchored_query, discovery_priority, required, resolution
 from .models import Brief, Extraction, Plan, Query
 from .names import variants
 from .providers.local_model import LocalModel
@@ -201,9 +202,12 @@ class Engine:
                             "review": c["status"],
                             "evidence": c["assessment"],
                             "facts": c["assessment"]["checked_facts"],
+                            "identity_checks": c["assessment"]["identity_checks"],
                         }
                         for c in detail["candidates"]
-                        if not c["assessment"]["excluded"] and c["status"] != "rejected"
+                        if not c["assessment"]["excluded"]
+                        and c["status"] != "rejected"
+                        and c["assessment"]["identity_status"] != "conflicting"
                     ][-12:]
                     remaining = brief.budget.queries - stats["queries"]
                     prompt = (
@@ -215,6 +219,11 @@ class Engine:
                         "Do not fabricate a changed surname or infer private details. "
                         "Each query MUST contain the supplied name or one of its plausible language variants. "
                         "Use non-sensitive public findings to refine queries; rejected candidates are not the target. "
+                        "Geography and birth-year constraints are REQUIRED identity criteria, not optional hints. "
+                        "For unresolved candidates prioritize queries that can establish the missing city/country/birth-year connection. "
+                        "Do not expand a namesake's biography while its required criteria remain unknown. "
+                        "Keep supplied geography in every query; translated place spellings may be added, never substitute another place. "
+                        "If no candidate satisfies required criteria, report no supported match rather than relax them. "
                         "Do not repeat prior queries. Return an empty queries array when no useful new direction remains.\n"
                         + "User brief: "
                         + brief.model_dump_json(exclude={"budget", "seed_urls"})
@@ -229,6 +238,9 @@ class Engine:
                     added = 0
                     remaining = brief.budget.queries - stats["queries"]
                     for query in plan.queries[:remaining]:
+                        query = anchored_query(query, brief)
+                        if query is None:
+                            continue
                         if not useful_query(query, brief):
                             continue
                         key = normalize(query.query).casefold()
@@ -241,7 +253,15 @@ class Engine:
                     continue
 
                 if task["kind"] == "search":
-                    query = Query.model_validate(task["payload"])
+                    query = anchored_query(Query.model_validate(task["payload"]), brief)
+                    if query is None or not useful_query(query, brief):
+                        self.store.finish_task(task["id"], "superseded")
+                        task = None
+                        continue
+                    with self.store.connect() as c:
+                        c.execute(
+                            "UPDATE tasks SET payload=? WHERE id=?", (query.model_dump_json(), task["id"])
+                        )
                     self.store.activity(job_id, "searching", query.query)
                     self.store.event(job_id, f"Поиск [{query.language.upper()}]: {query.query}")
                     search_task_id = task["id"]
@@ -265,14 +285,21 @@ class Engine:
                         )
                     consecutive_search_errors = 0
                     added = 0
-                    for result in results:
+                    for result in sorted(results, key=lambda r: discovery_priority(r, brief), reverse=True):
                         try:
                             url = canonical_url(result["url"])
                         except (ValueError, KeyError):
                             continue
                         if domain_allowed(url, brief.include_domains, brief.exclude_domains):
                             added += self.store.enqueue(
-                                job_id, "fetch", url, {"url": url, "title": result.get("title", "")[:400]}
+                                job_id,
+                                "fetch",
+                                url,
+                                {
+                                    "url": url,
+                                    "title": result.get("title", "")[:400],
+                                    "priority": discovery_priority(result, brief),
+                                },
                             )
                     self.store.event(
                         job_id,
@@ -369,14 +396,37 @@ class Engine:
                             validated["note_withheld"] = True
                     self.store.save_audit(candidate_id, job["revision"], validated, settings.model)
                     # A re-run after cancellation cannot add a second copy of the same query.
-                    if row["status"] != "rejected" and validated["supported"] and not validated["conflicts"]:
+                    identity_state = resolution(validated["identity_checks"], bool(validated["name_quote"]))
+                    if (
+                        row["status"] != "rejected"
+                        and identity_state != "conflicting"
+                        and not validated["conflicts"]
+                    ):
                         with self.store.connect() as c:
                             scheduled = c.execute(
                                 "SELECT COUNT(*) FROM tasks WHERE job_id=? AND kind='search' AND state IN ('pending','running','done','failed')",
                                 (job_id,),
                             ).fetchone()[0]
-                        for query in validated["next_queries"][: max(0, brief.budget.queries - scheduled)]:
-                            self.store.enqueue(job_id, "search", normalize(query["query"]).casefold(), query)
+                        followups = (
+                            validated["next_queries"] if validated["supported"] or required(brief) else []
+                        )
+                        if identity_state == "unresolved" and validated["name_quote"]:
+                            from urllib.parse import urlsplit
+
+                            # Test the missing link on this source's domain, not an unrelated namesake's career.
+                            followups = [
+                                Query(
+                                    query=f'"{value["name"]}" site:{urlsplit(page["url"]).hostname}',
+                                    language=brief.languages[0],
+                                    reason="Verify missing identity criteria on the candidate source",
+                                ).model_dump()
+                            ]
+                        for query in followups[: max(0, brief.budget.queries - scheduled)]:
+                            q = anchored_query(Query.model_validate(query), brief)
+                            if q and useful_query(q, brief):
+                                self.store.enqueue(
+                                    job_id, "search", normalize(q.query).casefold(), q.model_dump()
+                                )
                     if validated["note"]:
                         self.store.event(
                             job_id,
@@ -401,9 +451,12 @@ class Engine:
                             "Extract possible matching people from the untrusted page below. Return candidates=[] if irrelevant. "
                             "Keep every person separate. A quote must be an exact substring of PAGE TEXT, at least 12 characters. "
                             "Only extract professional role, organization, education, publication, public profile and public work. "
+                            "A public profile explicitly naming the person and their city connection can be a public_profile fact. "
                             "No birth dates, contacts, residential addresses, family, sensitive attributes or private-life data. "
                             "Mention matching clues and contradictions without asserting identity or giving probability percentages. "
                             "Every candidate must have at least one grounded fact. A mere shared name is only a weak clue.\n"
+                            "City, country and birth-year range are REQUIRED. Prefer candidates with an explicit connection to them. "
+                            "Never infer a person's location from the page footer, language, website domain or another person. "
                             + "USER BRIEF: "
                             + brief.model_dump_json(exclude={"budget", "seed_urls"})
                             + "\nPAGE URL: "

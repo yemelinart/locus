@@ -305,7 +305,10 @@ class Store:
             if kind:
                 sql += " AND kind=?"
                 args.append(kind)
-            row = c.execute(sql + " ORDER BY rowid LIMIT 1", args).fetchone()
+            order = (
+                "COALESCE(json_extract(payload,'$.priority'),0) DESC, rowid" if kind == "fetch" else "rowid"
+            )
+            row = c.execute(sql + " ORDER BY " + order + " LIMIT 1", args).fetchone()
             if not row:
                 return None
             c.execute("UPDATE tasks SET state='running' WHERE id=?", (row["id"],))

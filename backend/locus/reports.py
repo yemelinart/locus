@@ -124,6 +124,16 @@ def blocks(detail, lang="en"):
                     "Исследование выполняется или на паузе; вывод предварительный.",
                 ),
             )
+        line(
+            "Connections still unverified",
+            "Связь с критериями не подтверждена",
+            str(summary.get("unresolved_identity", 0)),
+        )
+        line(
+            "Conflicting with required criteria",
+            "Противоречат обязательным критериям",
+            str(summary.get("conflicting_identity", 0)),
+        )
     section("01 / Overview", "01 / Обзор")
     line("Status", "Статус", detail["status"])
     if detail["reason"]:
@@ -152,6 +162,7 @@ def blocks(detail, lang="en"):
         if c["status"] == "confirmed"
         and not c.get("assessment", {}).get("excluded")
         and not c.get("assessment", {}).get("review_outdated")
+        and c.get("assessment", {}).get("identity_status") not in {"unresolved", "conflicting"}
         and c.get("assessment", {}).get("checked_facts")
     ]
     if confirmed_profile:
@@ -259,6 +270,26 @@ def blocks(detail, lang="en"):
             }[candidate["status"]],
         )
         assessment = candidate.get("assessment")
+        if assessment and assessment.get("identity_checks"):
+            for criterion in assessment["identity_checks"]:
+                label = {
+                    "supports": t("Supported", "Подтверждено"),
+                    "contradicts": t("Contradiction", "Противоречие"),
+                    "unknown": t("Unverified", "Не подтверждено"),
+                }[criterion["relation"]]
+                add("bullet", criterion["requested"] + " — " + label)
+                if criterion["quote"]:
+                    add("quote", criterion["quote"])
+            if assessment["identity_status"] in {"unresolved", "conflicting"}:
+                add(
+                    "note",
+                    t(
+                        "Not included among matching profiles: required identity criteria are unresolved or contradicted. This card is retained as a research lead, not a found person.",
+                        "Не входит в подходящие профили: обязательные критерии не подтверждены или противоречат источнику. Карточка сохранена как направление проверки, а не найденный человек.",
+                    ),
+                )
+                add("link", source["url"])
+                continue
         if assessment:
             from .evidence import LABELS
 

@@ -144,7 +144,7 @@ def test_api_continuation_review_zip_and_deletion(tmp_path):
             data = json.loads(z.read(f"locus-{job}/research.json"))
             assert len(data["revisions"]) == 2
             pdf = PdfReader(BytesIO(z.read(f"locus-{job}/report.pdf")))
-            assert "Обоснованность совпадения" in "".join(p.extract_text() for p in pdf.pages)
+            assert "Не входит в подходящие профили" in "".join(p.extract_text() for p in pdf.pages)
         folder = project_path(store, job)
         assert (folder / "index.html").exists()
         assert client.delete(f"/api/jobs/{job}", headers=HEADERS).status_code == 200

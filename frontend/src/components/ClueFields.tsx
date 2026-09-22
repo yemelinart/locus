@@ -13,8 +13,8 @@ export default function ClueFields({
       <h3>{t("Known public context", "Известный публичный контекст")}</h3>
       <p className="small-muted">
         {t(
-          "Add exact school, organization or work titles, one per line. These are your search clues, not verified facts. The evidence meter checks their presence in quotations.",
-          "Укажите названия учебных заведений, организаций или работ, по одному на строку. Это ваши ориентиры, а не проверенные факты. Шкала проверяет их присутствие в цитатах.",
+          "Add known school, organization or work titles, one per line. Each becomes a required matching criterion: a source must support its connection to this person. Put uncertain suggestions in additional context instead.",
+          "Укажите известные учебные заведения, организации или работы, по одному на строку. Каждый пункт — обязательный критерий: источник должен подтверждать его связь с этим человеком. Неуверенные предположения лучше записать в дополнительном контексте.",
         )}
       </p>
       {(

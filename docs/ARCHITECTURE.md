@@ -143,3 +143,7 @@ The worker persists actual planning/search/reading/extraction/review phases with
 Ollama uses loopback-only `/api/tags`, `/api/show`, `/api/chat`, no redirects or environment proxies. Discovery reads metadata only. Generation repeats `/api/show` preflight to reject remote aliases and non-chat models, maps per-request settings into `options`, checks truncation/completion and validates only final content against the schema. Thinking traces are not retained. Model files, global defaults, memory allocation and context size are not edited. The application trusts the configured local server; a deliberately misconfigured third-party proxy cannot be attested as local computation by HTTP metadata alone.
 
 Provider/address changes invalidate outstanding frontend probes with a request revision. Settings preserve the active provider; per-provider drafts last only while the dialog is open. Recommendation buttons affect only their own settings section. Research already running keeps its captured settings; saved provider changes apply to the next run.
+
+## 0.5 identity criteria
+
+`identity.py` defines required criteria, validated three-state checks, geographic query anchors and reading priority. `verification.py` emits versioned criterion audits; `evidence.py` computes an all-criteria eligibility gate independently of evidence strength. UI and reports separate unresolved/conflicting leads from matching profiles. This supersedes the earlier treatment of city/country as planning-only hints. See [design and limitations](V05-IDENTITY.md).

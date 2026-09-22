@@ -52,6 +52,9 @@ export default function ResearchActivity({ job }: { job: Detail }) {
         c.assessment?.model_reviewed &&
         c.assessment.note &&
         !c.assessment.excluded &&
+        !["unresolved", "conflicting"].includes(
+          c.assessment.identity_status || "",
+        ) &&
         c.status !== "rejected",
     )
     .sort((a, b) =>

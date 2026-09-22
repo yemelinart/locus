@@ -119,7 +119,13 @@ export default function NewResearch({
           )}
         </Field>
         <div className="grid two">
-          <Field label={t("Город")} hint={t("Можно указать приблизительно")}>
+          <Field
+            label={t("Город")}
+            hint={t(
+              "Required connection, including earlier life. Add the region to distinguish namesakes.",
+              "Обязательная связь, в том числе в прошлом. Добавьте область для различения городов.",
+            )}
+          >
             {(id) => (
               <input
                 id={id}

@@ -97,7 +97,13 @@ export default function ContinueDialog({
             )}
           </summary>
           <div className="grid two">
-            <Field label={t("City", "Город")}>
+            <Field
+              label={t("City", "Город")}
+              hint={t(
+                "Required biographical connection, including the past",
+                "Обязательная биографическая связь, включая прошлое",
+              )}
+            >
               {(id) => (
                 <input
                   id={id}

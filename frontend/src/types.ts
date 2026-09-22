@@ -64,6 +64,15 @@ export type Source = {
 export type Fact = { category: string; statement: string; quote: string };
 export type Candidate = {
   assessment?: {
+    identity_status?:
+      "eligible" | "unresolved" | "conflicting" | "no_constraints";
+    identity_checks?: {
+      field: string;
+      requested: string;
+      relation: "supports" | "contradicts" | "unknown";
+      quote: string;
+      observed: string;
+    }[];
     level:
       | "insufficient"
       | "limited"
@@ -120,6 +129,8 @@ export type Job = {
 };
 export type Detail = Job & {
   conclusion?: {
+    unresolved_identity?: number;
+    conflicting_identity?: number;
     state: string;
     provisional: boolean;
     promising_ids: string[];

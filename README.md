@@ -8,9 +8,17 @@
 
 Locus turns a name and a few known details into a research workspace. Your local model plans multilingual queries and extracts source-backed observations from accessible public pages. You review possible matches, add clues and continue the same project as your understanding improves.
 
-**0.4.0 · Early release · MIT-licensed code · Local web app**
+**0.5.0 · Early release · MIT-licensed code · Local web app**
 
-## New in 0.4
+## New in 0.5
+
+City, country, birth-year range and structured public clues are now required matching criteria. Each is supported, unknown or contradicted, with a source quotation. Only records meeting every supplied criterion appear in the default results. Unverified connections and conflicts have separate filters; a namesake alone does not count as a match. A different current city does not disprove a past connection.
+
+The planner receives missing criteria, follow-up searches target missing connections, and every executed query retains the entered city and country. Search snippets affect reading order only. Reports exclude unresolved biographies from the matching profile overview. Existing records remain saved but need the new audit on an explicit Continue. Opening the app does not run AI.
+
+This conservative, page-based check can miss valid people whose evidence is spread across pages. Geographic interpretation remains model-dependent; no calibrated probability or accuracy claim is made. Free-text context guides planning, whereas dedicated fields control matching. See [identity engine design and limitations](docs/V05-IDENTITY.md).
+
+## Earlier: 0.4
 
 The research view now shows an animated observatory driven by the actual worker phase and source URLs. Motion pauses with the research and respects reduced-motion preferences.
 

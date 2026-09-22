@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.0 — 2026-09-21
+
+- Required city, country, birth-year and structured-clue gates with quoted supports / unknown / contradictions. Namesakes without all supplied criteria are separated from matching results and report biographies.
+- Conservative same-person, same-place and birth-year checks; another current location alone is not an explicit contradiction. Previous audits become stale without deleting records.
+- Geography-preserving planned and queued queries; missing-link follow-ups, snippet reading priority and target-country search-region defaults.
+- Bilingual criterion explanations, dedicated unresolved/conflict filters and an opt-in synthetic local-model identity harness. Schema remains 4.
+
 ## 0.4.0 — 2026-09-21
 
 - Added durable real-phase activity and an animated research observatory, with observed source domains, paused state, animation toggle and reduced-motion support.

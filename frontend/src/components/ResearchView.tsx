@@ -257,10 +257,18 @@ export default function ResearchView({
     (c) =>
       filter === "all" ||
       (filter === "active"
-        ? !c.assessment?.excluded && c.status !== "rejected"
-        : filter === "archived"
-          ? c.assessment?.excluded
-          : c.status === filter),
+        ? !c.assessment?.excluded &&
+          c.status !== "rejected" &&
+          !["unresolved", "conflicting"].includes(
+            c.assessment?.identity_status || "",
+          )
+        : filter === "unresolved" || filter === "conflicting"
+          ? c.assessment?.identity_status === filter &&
+            !c.assessment?.excluded &&
+            c.status !== "rejected"
+          : filter === "archived"
+            ? c.assessment?.excluded
+            : c.status === filter),
   );
   return (
     <div className="research-view">
@@ -435,7 +443,15 @@ export default function ResearchView({
                   onChange={(e) => setFilter(e.target.value)}
                 >
                   <option value="active">
-                    {t("Current candidates", "Актуальные карточки")}
+                    {t("Meet required criteria", "Соответствуют критериям")}
+                  </option>
+                  <option value="unresolved">
+                    {t("Connection unverified", "Связь не подтверждена")} (
+                    {job.conclusion?.unresolved_identity || 0})
+                  </option>
+                  <option value="conflicting">
+                    {t("Criteria conflicts", "Противоречат критериям")} (
+                    {job.conclusion?.conflicting_identity || 0})
                   </option>
                   <option value="archived">
                     {t("Archived by filters", "В архиве по фильтрам")}
@@ -470,7 +486,8 @@ export default function ResearchView({
                   <p>
                     {running
                       ? t(
-                          "Здесь появятся люди, для которых найдены цитаты на прочитанных страницах.",
+                          "Only candidates with sourced support for every required criterion appear here. Unverified connections remain in their own list.",
+                          "Здесь появятся кандидаты с подтверждением каждого обязательного критерия. Неподтверждённые связи остаются в отдельном списке.",
                         )
                       : job.status === "draft"
                         ? t(

@@ -36,6 +36,16 @@ LABELS = {
 }
 
 
+def target_region(settings, brief, language):
+    if settings.search_region != "auto":
+        return settings.search_region
+    country = brief.country.strip().casefold()
+    if country in {"ukraine", "украина", "україна"}:
+        return REGIONS["uk"]
+    # An English query about a supplied country must not silently prefer the US.
+    return "wt-wt" if country else REGIONS.get(language, "wt-wt")
+
+
 def catalog():
     installed = ENGINES.get("text", {})
     return [
@@ -122,7 +132,10 @@ class Search:
             results = data.get("results", [])[: self.settings.results_per_query]
             if not results and data.get("unresponsive_engines"):
                 raise ValueError("SearXNG engines are unavailable; this does not mean no matches exist.")
-            return [{"url": r["url"], "title": r.get("title", "")} for r in results]
+            return [
+                {"url": r["url"], "title": r.get("title", ""), "snippet": str(r.get("content", ""))[:1200]}
+                for r in results
+            ]
         process = await asyncio.create_subprocess_exec(
             sys.executable,
             "-m",
@@ -133,9 +146,7 @@ class Search:
         )
         payload = {
             "query": text,
-            "region": REGIONS.get(query.language, "wt-wt")
-            if self.settings.search_region == "auto"
-            else self.settings.search_region,
+            "region": target_region(self.settings, brief, query.language),
             "max_results": self.settings.results_per_query,
             "backend": backend,
             "timeout": self.settings.request_timeout,

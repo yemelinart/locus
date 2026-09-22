@@ -15,7 +15,20 @@ def main():
             raise ValueError("Search adapter is not installed")
         DDGS.threads = 1
         hits = DDGS(timeout=timeout).text(**request)
-        print(json.dumps({"results": [{"url": r["href"], "title": r.get("title", "")} for r in hits]}))
+        print(
+            json.dumps(
+                {
+                    "results": [
+                        {
+                            "url": r["href"],
+                            "title": r.get("title", ""),
+                            "snippet": str(r.get("body", ""))[:1200],
+                        }
+                        for r in hits
+                    ]
+                }
+            )
+        )
     except Exception as exc:
         print(
             json.dumps(

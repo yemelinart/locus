@@ -9,6 +9,9 @@ export default function ResearchConclusion({ job }: { job: Detail }) {
       x.status === "confirmed" &&
       !x.assessment?.review_outdated &&
       !x.assessment?.excluded &&
+      !["unresolved", "conflicting"].includes(
+        x.assessment?.identity_status || "",
+      ) &&
       x.assessment?.checked_facts?.length,
   );
   const titles: Record<string, string> = {
@@ -68,6 +71,28 @@ export default function ResearchConclusion({ job }: { job: Detail }) {
           {t("Unavailable", "Недоступно")}: {c.unavailable_sources}
         </span>
       </div>
+      {!!c.unresolved_identity && (
+        <p>
+          {t(
+            "Cards without evidence for all required criteria",
+            "Карточек без подтверждения всех обязательных критериев",
+          )}
+          : {c.unresolved_identity}.{" "}
+          {t(
+            "They are kept in Connection unverified, outside matching results.",
+            "Они сохранены в списке «Связь не подтверждена», отдельно от подходящих результатов.",
+          )}
+        </p>
+      )}
+      {!!c.conflicting_identity && (
+        <p>
+          {t(
+            "Cards conflicting with required criteria",
+            "Карточек с противоречиями обязательным критериям",
+          )}
+          : {c.conflicting_identity}.
+        </p>
+      )}
       {c.pending_cards > 0 && (
         <p className="conclusion-pending">
           <CircleHelp size={15} />
@@ -101,15 +126,19 @@ export default function ResearchConclusion({ job }: { job: Detail }) {
           )}
         </p>
       )}
-      {!job.brief.evidence_clues?.length && (
-        <p className="conclusion-pending">
-          <CircleHelp size={15} />
-          {t(
-            "For a stronger comparison, add a known school, organisation or public work in Refine & continue. A name and search location alone keep the evidence meter limited.",
-            "Для более точного сравнения добавьте известное учебное заведение, организацию или публичную работу через «Уточнить и продолжить». Одного имени и места поиска недостаточно для высокой оценки по шкале.",
-          )}
-        </p>
-      )}
+      {!job.brief.evidence_clues?.length &&
+        !job.brief.city &&
+        !job.brief.country &&
+        !job.brief.year_from &&
+        !job.brief.year_to && (
+          <p className="conclusion-pending">
+            <CircleHelp size={15} />
+            {t(
+              "For a stronger comparison, add a known school, organisation or public work in Refine & continue. A name and search location alone keep the evidence meter limited.",
+              "Для более точного сравнения добавьте известное учебное заведение, организацию или публичную работу через «Уточнить и продолжить». Одного имени и места поиска недостаточно для высокой оценки по шкале.",
+            )}
+          </p>
+        )}
       {confirmed.length > 0 && (
         <details className="confirmed-profile">
           <summary>

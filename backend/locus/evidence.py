@@ -3,6 +3,7 @@
 import re
 import unicodedata
 
+from .identity import required, resolution
 from .verification import AUDIT_METHOD
 from .web import domain_allowed
 
@@ -68,7 +69,26 @@ def assess(candidate, source, brief, revision):
     )
     if excluded:
         level = "excluded"
+    checks = audit.get("identity_checks", []) if current else []
+    # Rebuild from the brief so omitted/stale criteria cannot disappear from the gate.
+    checks = [
+        next(
+            (c for c in checks if c["field"] == r["field"] and c["requested"] == r["requested"]),
+            r | {"relation": "unknown", "quote": "", "observed": ""},
+        )
+        for r in required(brief, include_clues=True)
+    ]
+    identity_status = resolution(checks, bool(name_quote) and current)
+    if not excluded:
+        if identity_status == "conflicting":
+            level = "conflicting"
+        elif identity_status == "unresolved":
+            level = "limited" if name_quote else "insufficient"
+        elif identity_status == "eligible" and level not in {"conflicting", "insufficient"}:
+            level = "supported" if level == "limited" else level
     return {
+        "identity_checks": checks,
+        "identity_status": identity_status,
         "level": level,
         "name_quote": name_quote,
         "supported": supported,
@@ -93,8 +113,9 @@ def conclusion(detail):
     candidates = [
         c for c in detail["candidates"] if c["status"] != "rejected" and not c["assessment"]["excluded"]
     ]
-    promising = [c for c in candidates if c["assessment"]["level"] in {"supported", "strong"}]
-    checked = sum(len(c["assessment"]["checked_facts"]) for c in candidates)
+    eligible = [c for c in candidates if c["assessment"]["identity_status"] in {"eligible", "no_constraints"}]
+    promising = [c for c in eligible if c["assessment"]["level"] in {"supported", "strong"}]
+    checked = sum(len(c["assessment"]["checked_facts"]) for c in eligible)
     state = "no_supported_findings"
     if not detail["stats"]["queries"] and not detail["sources"] and detail["status"] == "draft":
         state = "not_started"
@@ -107,6 +128,8 @@ def conclusion(detail):
     elif checked:
         state = "limited"
     return {
+        "unresolved_identity": sum(c["assessment"]["identity_status"] == "unresolved" for c in candidates),
+        "conflicting_identity": sum(c["assessment"]["identity_status"] == "conflicting" for c in candidates),
         "state": state,
         "provisional": detail["status"] in {"running", "queued", "paused"},
         "promising_ids": [c["id"] for c in promising],
