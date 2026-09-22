@@ -22,6 +22,7 @@ test("required criteria separate matches, unknown links and conflicts", async ({
     const data = await original.json();
     const statuses = ["eligible", "unresolved", "conflicting"];
     data.status = "completed";
+    data.retryable_model_steps = 2;
     data.stats = { queries: 3, pages: 3, sources: 3, candidates: 3 };
     data.sources = statuses.map((s, i) => ({
       id: String(i),
@@ -121,6 +122,9 @@ test("required criteria separate matches, unknown links and conflicts", async ({
   await expect(page.locator(".research-conclusion")).toContainText(
     "outside matching results",
   );
+  await expect(page.locator(".research-conclusion")).toContainText(
+    "AI steps left unverified after invalid responses: 2",
+  );
   await page
     .getByRole("combobox", { name: "Filter candidates" })
     .selectOption("unresolved");
@@ -143,6 +147,9 @@ test("required criteria separate matches, unknown links and conflicts", async ({
   await page.getByRole("button", { name: "Change interface language" }).click();
   await expect(page.locator(".candidate-card .review-label")).toHaveText(
     "Только имя · личность не установлена",
+  );
+  await expect(page.locator(".research-conclusion")).toContainText(
+    "Шагов ИИ осталось без проверки из-за неверных ответов: 2",
   );
   await page.getByRole("button", { name: "Изменить язык приложения" }).click();
   await expect(page.locator(".identity-criteria")).toContainText(

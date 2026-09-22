@@ -134,6 +134,7 @@ export type LinkDecision = {
   status: "confirmed" | "rejected" | "unreviewed";
 };
 export type Detail = Job & {
+  retryable_model_steps?: number;
   queue?: { search: number; fetch: number; analyze: number; review: number };
   continuation?: {
     blocked_by: string[];

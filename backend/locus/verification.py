@@ -65,37 +65,57 @@ def useful_query(query, brief):
 
 
 def excerpt_for(body, brief, limit):
-    """Keep the introduction and windows around actual names/clues, including the page tail."""
+    """Budget literal passages by criterion coverage, not mention frequency."""
     if len(body) <= limit:
         return body
-    patterns = [name_pattern(n) for n in names(brief)]
-    patterns += [
-        re.escape(t)
-        for t in [brief.city, brief.country, *[c.text for c in brief.evidence_clues]]
-        if len(t) >= 3
-    ]
-    windows = [(0, min(1000, limit // 4))]
-    for pattern in patterns:
-        for m in list(re.finditer(pattern, body, re.I))[:12]:
-            windows.append((max(0, m.start() - 450), min(len(body), m.end() + 900)))
-    chosen, spent = [], 0
-    for start, end in windows:
-        if any(start >= a and end <= b for a, b in chosen):
-            continue
-        # Avoid manufacturing adjacent text across omitted parts.
-        size = end - start + 40
-        if spent + size <= limit:
-            chosen.append((start, end))
-            spent += size
-    if len(chosen) <= 1:
-        return body[:limit]
-    merged = []
-    for start, end in sorted(chosen):
-        if merged and start <= merged[-1][1]:
-            merged[-1] = (merged[-1][0], max(end, merged[-1][1]))
-        else:
-            merged.append((start, end))
-    return "\n[... omitted source text ...]\n".join(body[a:b] for a, b in merged)[:limit]
+    from .places import forms
+    from .retrieval import anchors
+
+    hits = []
+    for pattern in [name_pattern(n) for n in names(brief)]:
+        hits.extend((m.start(), m.end(), "name") for m in list(re.finditer(pattern, body, re.I))[:48])
+    for field, values in anchors(brief, body):
+        for term in {f for v in values for f in forms(v) if len(f) >= 3}:
+            pattern = r"(?<!\w)" + re.escape(term) + r"(?!\w)"
+            hits.extend((m.start(), m.end(), field) for m in list(re.finditer(pattern, body, re.I))[:48])
+    hits = sorted(set(hits))
+    radius = min(600, max(200, limit // 5))
+    windows = sorted({(max(0, a - radius), min(len(body), b + radius)) for a, b, _ in hits})
+    marker = "\n[... omitted source text ...]\n"
+
+    def merged(ranges):
+        result = []
+        for a, b in sorted(ranges):
+            if result and a <= result[-1][1]:
+                result[-1] = (result[-1][0], max(b, result[-1][1]))
+            else:
+                result.append((a, b))
+        return result
+
+    def size(ranges):
+        return sum(b - a for a, b in ranges) + max(0, len(ranges) - 1) * len(marker)
+
+    chosen = [(0, min(600, limit // 5))]
+    covered = set()
+    while windows:
+        options = []
+        for a, b in windows:
+            fields = {f for start, end, f in hits if start >= a and end <= b}
+            combined = merged([*chosen, (a, b)])
+            cost = size(combined) - size(chosen)
+            if cost <= 0 or size(combined) > limit:
+                continue
+            new = fields - covered
+            # A name next to a requested relation outranks repeated name-only mentions.
+            utility = 8 * len(new - {"name"}) + 4 * bool("name" in new)
+            utility += 3 * bool("name" in fields and fields - {"name"}) + 1
+            options.append((utility, -cost, -a, (a, b), fields, combined))
+        if not options:
+            break
+        _, _, _, chosen_window, fields, chosen = max(options, key=lambda x: x[:3])
+        covered |= fields
+        windows.remove(chosen_window)
+    return marker.join(body[a:b] for a, b in chosen)
 
 
 class ClaimCheck(Model):
@@ -157,6 +177,8 @@ def observation_allowed(note, verdict):
 def audit_prompt(value, brief, excerpt):
     import json
 
+    from .passages import evidence_passages
+
     return (
         "Review ONE candidate against source text. You are a skeptical reviewer, not a storyteller. "
         "For EACH numbered claim judge whether the quote and surrounding source explicitly support the statement "
@@ -180,6 +202,13 @@ def audit_prompt(value, brief, excerpt):
         + IDENTITY_INSTRUCTIONS
         + "\nOFFLINE PLACE REFERENCE (not evidence about the person): "
         + json.dumps(prompt_context(brief), ensure_ascii=False)
+        + "\nFor identity_checks prefer passage_id from LITERAL QUOTATION CHOICES and set quote to an empty string. "
+        "These are exact source slices, NOT verified matches. Select one only if its meaning clearly attributes "
+        "the requested relation to this candidate. Mere co-occurrence, photo credits, another person's city "
+        "or a page footer are insufficient. If no passage fits, use a complete verbatim quote from SOURCE; "
+        "never shorten it with ellipses. An invalid reference or altered quote will be rejected.\n"
+        + "LITERAL QUOTATION CHOICES: "
+        + json.dumps(evidence_passages(excerpt, brief, value["name"]), ensure_ascii=False)
         + "\nREQUIRED IDENTITY CRITERIA: "
         + json.dumps(required(brief), ensure_ascii=False)
         + "\nBRIEF: "

@@ -100,6 +100,12 @@ def blocks(detail, lang="en"):
 
         summary = detail["conclusion"]
         section("Research conclusion", "Вывод исследования")
+        if detail.get("retryable_model_steps"):
+            line(
+                "AI steps awaiting retry",
+                "Шагов ИИ в ожидании повторной проверки",
+                str(detail["retryable_model_steps"]),
+            )
         add("h2", CONCLUSIONS[summary["state"]][lang == "ru"])
         add(
             "p",
@@ -120,8 +126,8 @@ def blocks(detail, lang="en"):
             add(
                 "p",
                 t(
-                    "Research is in progress or paused; this conclusion is provisional.",
-                    "Исследование выполняется или на паузе; вывод предварительный.",
+                    "Research has unfinished work; this conclusion is provisional.",
+                    "Не вся работа завершена; вывод предварительный.",
                 ),
             )
         line(

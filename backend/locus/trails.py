@@ -10,7 +10,7 @@ from .web import canonical_url, domain_allowed
 def extract_links(soup, base_url):
     links, seen = [], set()
 
-    def add(href, context, kind, person=""):
+    def add(href, context, kind, person="", label=""):
         if not isinstance(href, str):
             return
         try:
@@ -21,7 +21,9 @@ def extract_links(soup, base_url):
         if url == canonical_url(base_url) or key in seen or len(links) >= 100:
             return
         seen.add(key)
-        links.append({"url": url, "context": context[:600], "kind": kind, "person": person[:160]})
+        links.append(
+            {"url": url, "context": context[:600], "kind": kind, "person": person[:160], "label": label[:160]}
+        )
 
     def structured(value, depth=0):
         if depth > 6:
@@ -59,7 +61,7 @@ def extract_links(soup, base_url):
         if len(context) > 600 and anchor_text:
             position = context.find(anchor_text)
             context = context[max(0, position - 200) : max(0, position - 200) + 600]
-        add(anchor["href"], context, "hyperlink")
+        add(anchor["href"], context, "hyperlink", label=anchor_text)
         same_host = urlsplit(urljoin(base_url, anchor["href"])).hostname == urlsplit(base_url).hostname
         if (
             heading

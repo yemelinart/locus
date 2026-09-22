@@ -8,7 +8,7 @@ from pydantic import Field
 
 from .models import Model
 from .names import name_in
-from .places import city_equivalent, country_equivalent, search_spellings
+from .places import city_equivalent, country_equivalent
 
 
 def normalized(value):
@@ -51,6 +51,7 @@ class IdentityCheck(Model):
     field: Literal["city", "country", "birth_year"]
     relation: Literal["supports", "contradicts", "unknown"] = "unknown"
     quote: str = Field(default="", max_length=500)
+    passage_id: int | None = Field(default=None, ge=0, le=11)
     observed: str = Field(default="", max_length=160)
     same_subject: bool = False
     same_place: bool = False
@@ -60,6 +61,10 @@ class IdentityCheck(Model):
 
 
 def validate_checks(checks, brief, candidate_name, body, excerpt):
+    from .passages import evidence_passages, resolve_passage
+
+    passages = evidence_passages(excerpt, brief, candidate_name)
+    checks = [resolve_passage(c, passages) for c in checks]
     result = []
     for criterion in required(brief):
         field = criterion["field"]
@@ -83,7 +88,7 @@ def validate_checks(checks, brief, candidate_name, body, excerpt):
                     # The model identifies the birth-year relation; arithmetic is never delegated.
                     year = c.birth_year
                     birth_context = re.search(
-                        r"born|birth|родил|родив|народ|gebor|né\b|née\b|nac[ií]|nasc|doğ|urodz|出生|生まれ",
+                        r"born|birth|\bb\.\s*(?:18|19|20)\d{2}\b|родил|родив|народ|gebor|né\b|née\b|nac[ií]|nasc|doğ|urodz|出生|生まれ",
                         q,
                         re.I,
                     )
@@ -142,15 +147,9 @@ def resolution(checks, has_name):
 
 def discovery_priority(result, brief):
     """Triage only: snippets affect reading order, never candidate identity evidence."""
-    text = normalized(result.get("title", "") + " " + result.get("snippet", ""))
-    score = 0
-    score += 3 if name_in(text, [brief.name, *brief.aliases]) else 0
-    if any(normalized(v) in text for v in search_spellings(brief.city, brief.country)):
-        score += 5
-    for value, weight in [(brief.country, 2)]:
-        if value.strip() and normalized(value) in text:
-            score += weight
-    return score
+    from .retrieval import score
+
+    return score(result, brief)
 
 
 IDENTITY_INSTRUCTIONS = (
@@ -167,6 +166,12 @@ IDENTITY_INSTRUCTIONS = (
     "A page footer, another person's location, publication venue, or mere mention of a city is NOT evidence about this person. "
     "same_subject=true ONLY when the quote explicitly attributes the observation to this candidate. "
     "The exact quote must contain the candidate's full name and the observed value. If not available, leave unknown. "
+    "A single-person profile may name its subject in a heading and give the place on an adjacent biography line. "
+    "In that case quote the contiguous span including BOTH, only if the line clearly describes that subject. "
+    "Photo credits, related-person links and page furniture do not change the profile subject. Mere proximity "
+    "of another person's place is not attribution. Evaluate identity criteria separately from which claims "
+    "are appropriate for the public-work summary; withholding a birth-date summary does not erase an "
+    "explicit city/country connection in the source. "
     "same_place=true only for the requested place or its unambiguous equivalent. Different current residence, nationality "
     "or workplace alone does not disprove an earlier connection: leave unknown. Contradicts requires explicit incompatible "
     "evidence about the SAME relation/time, such as an explicit denial of the requested connection. "

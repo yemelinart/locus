@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.7.0 — 2026-09-22
+
+- Weak nonempty search results can trigger another selected index. Canonical URL deduplication and name/place/school signals rank discovery results; snippets never establish identity.
+- Source excerpts prioritize coverage of requested criteria and nearby name mentions instead of spending the entire context on repeated names near the start of a page. Literal passages remain separated across omissions.
+- The identity reviewer can select numbered exact source passages instead of retyping quotations. This fixes rejected ellipsis-shortened evidence without bypassing subject, place, year or literal-source checks. Birth-year-only searches also guide retrieval; contradictory years remain visible to the reviewer.
+- Missing-criterion probes rotate across city, country, year and structured clues. Previously scheduled probes are removed before the next bounded batch is selected.
+- Restored bounded navigation to explicitly named professional profiles/portfolios, fixing a 0.6.3 regression in split-source evidence discovery. No automatic identity merge.
+- Malformed/schema-invalid model output gets one bounded retry. Repeatedly invalid extraction/review steps are retained for explicit resumption while other paths proceed; three consecutive failed steps pause the run. Failed optional commentary does not erase the core review. Pending retries are shown in conclusions and exports.
+- Preserved article headings and short public profile text; recognized selected HTTP-200 access-check pages as unreadable. Rejected multicast source URLs and DNS answers.
+- Added a seven-case closed-corpus quality suite to CI, including explicit negative cases. No new dependency, schema migration or audit invalidation. Existing reviewed records are retained; improved processing applies to newly executed steps.
+
 ## 0.6.3 — 2026-09-22
 
 - Removed the unconditional “Possible match” card label and positive name-only evidence bar. Unreviewed records, unconfirmed identity, conflicting criteria and supported criteria now have separate labels in the interface and exports.

@@ -220,5 +220,13 @@
   "Выбранный уровень thinking недоступен для этой модели. Обновите сведения о модели.": "This model does not expose the selected thinking level. Refresh capabilities.",
   "Лимиты поиска исчерпаны. Нажмите «Продолжить поиск», чтобы добавить время и объём работы.": "Search allowance exhausted. Use Continue search to add time and work before resuming.",
   "Лимиты обновлены. Можно продолжить сохранённую очередь.": "Search allowance updated. Ready to continue the saved queue.",
-  "Поиск продлён с прежними условиями. Находки, оценки и незавершённые шаги сохранены.": "Search extended with the same criteria. Findings, reviews and pending work preserved."
+  "Поиск продлён с прежними условиями. Находки, оценки и незавершённые шаги сохранены.": "Search extended with the same criteria. Findings, reviews and pending work preserved.",
+  "Ответ ИИ не принят по формату; одна повторная попытка.": "AI response format rejected; one retry.",
+  "Комментарий ИИ пропущен: неверный формат. Основная проверка сохранена.": "AI commentary skipped after invalid output. Core review preserved.",
+  "Шаг ИИ отложен после двух неверных ответов. Другие направления остаются доступны.": "AI step deferred after two invalid responses. Other research paths remain available.",
+  "Три шага ИИ подряд не выполнены. Проверьте модель и формат ответа; очередь сохранена.": "Three consecutive AI steps failed. Check the model and output format; the queue is saved.",
+  "План ИИ недоступен; используются оставшиеся запросы по исходным ориентирам.": "AI plan unavailable; using remaining queries based on the supplied clues.",
+  "Локальная модель вернула повреждённый JSON. Этот ответ не принят.": "The local model returned malformed JSON. This response was not accepted.",
+  "Ответ модели не соответствует схеме. Этот ответ не принят.": "The model response does not match the schema. This response was not accepted.",
+  "Сайт вернул проверку доступа вместо страницы; сведения не прочитаны.": "The site returned an access check instead of the page; information was not read."
 }

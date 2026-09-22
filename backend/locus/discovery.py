@@ -110,14 +110,15 @@ def portfolio(brief, planned, previous, limit, first_round=False):
     return result
 
 
-def verification_queries(brief, candidate, page_url, checks):
+def verification_queries(brief, candidate, page_url, checks, previous=()):
     """Test a missing relation rather than repeatedly appending all constraints."""
     name = quoted(candidate["name"])
     host = urlsplit(page_url).hostname
-    queries = []
+    groups = []
     for check in checks:
         if check["relation"] != "unknown":
             continue
+        queries = []
         term = check["requested"]
         if check["field"] == "birth_year":
             term = "born biography"
@@ -138,6 +139,7 @@ def verification_queries(brief, candidate, page_url, checks):
                         reason="Investigate missing criterion: city",
                     )
                 )
+            groups.append(queries)
             continue
         else:
             term = quoted(term)
@@ -148,6 +150,8 @@ def verification_queries(brief, candidate, page_url, checks):
                 reason=f"Investigate missing criterion: {check['field']}",
             )
         )
+        groups.append(queries)
+    queries = []
     if host and not any(c["relation"] == "unknown" for c in checks):
         queries.append(
             Query(
@@ -156,4 +160,17 @@ def verification_queries(brief, candidate, page_url, checks):
                 reason="Find related public profile pages on the observed source",
             )
         )
-    return queries[:4]
+        groups.append(queries)
+    # Every missing criterion gets a turn. Remove used probes BEFORE taking the
+    # bounded batch, otherwise four exhausted city probes starve school/year clues.
+    seen = {normalized(q) for q in previous}
+    choices = []
+    for offset in range(max((len(g) for g in groups), default=0)):
+        for group in groups:
+            if offset < len(group):
+                query = group[offset]
+                key = normalized(query.query)
+                if key not in seen:
+                    choices.append(query)
+                    seen.add(key)
+    return choices[:4]

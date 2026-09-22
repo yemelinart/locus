@@ -14,7 +14,7 @@ from .models import Brief, Extraction, Plan, Query
 from .names import variants
 from .navigation import planned_trails
 from .places import prompt_context
-from .providers.local_model import LocalModel
+from .providers.local_model import LocalModel, ModelResponseError
 from .providers.search import Search
 from .verification import (
     AUDIT_METHOD,
@@ -176,6 +176,51 @@ class Engine:
             # wait_for also closes the request/subprocess when pausing or exhausting time.
             return await asyncio.wait_for(awaitable, max(0.001, remaining))
 
+        model_failures = 0
+
+        async def model_call(prompt, schema, optional=False):
+            nonlocal model_failures, task
+            for attempt in range(2):
+                try:
+                    result = await bounded(model.complete(prompt, schema))
+                    if not optional:
+                        model_failures = 0
+                    return result
+                except ModelResponseError:
+                    if attempt == 0:
+                        self.store.event(
+                            job_id, "Ответ ИИ не принят по формату; одна повторная попытка.", "warning"
+                        )
+                        prompt += (
+                            "\nFORMAT RETRY: return one concise valid JSON object matching the schema. "
+                            "Keep every required identity check; omit optional narrative and extra examples. "
+                            "Prefer at most two extracted candidates/facts or six plan queries. "
+                            "Never fill missing evidence to satisfy the schema."
+                        )
+            if optional:
+                self.store.event(
+                    job_id,
+                    "Комментарий ИИ пропущен: неверный формат. Основная проверка сохранена.",
+                    "warning",
+                )
+                return None
+            model_failures += 1
+            if task:
+                self.store.finish_task(
+                    task["id"], "failed", "MODEL_RESPONSE: Invalid output after bounded retry"
+                )
+                task = None
+            self.store.event(
+                job_id,
+                "Шаг ИИ отложен после двух неверных ответов. Другие направления остаются доступны.",
+                "warning",
+            )
+            if model_failures >= 3:
+                raise ModelResponseError(
+                    "Три шага ИИ подряд не выполнены. Проверьте модель и формат ответа; очередь сохранена."
+                )
+            return None
+
         def complete(reason: str):
             self.store.activity(job_id, "finished")
             self.store.update(job_id, status="completed", reason=reason)
@@ -184,6 +229,7 @@ class Engine:
         try:
             if not settings.model:
                 raise ValueError("Выберите локальную модель в настройках и продолжите поиск")
+            self.store.retry_model_tasks(job_id)
             for url in brief.seed_urls:
                 if domain_allowed(url, brief.include_domains, brief.exclude_domains):
                     self.store.enqueue(
@@ -309,7 +355,14 @@ class Engine:
                         + "\nUser-confirmed source groups and combined criteria: "
                         + dump(detail.get("linkage", {}).get("groups", []))[:6000]
                     )
-                    plan = await bounded(model.complete(prompt, Plan))
+                    plan = await model_call(prompt, Plan)
+                    if plan is None:
+                        plan = Plan(queries=[])
+                        self.store.event(
+                            job_id,
+                            "План ИИ недоступен; используются оставшиеся запросы по исходным ориентирам.",
+                            "warning",
+                        )
                     added = 0
                     remaining = brief.budget.queries - stats["queries"]
                     for query in portfolio(
@@ -499,7 +552,9 @@ class Engine:
                         )
                     excerpt = excerpt_for(page["body"], brief, settings.context_chars)
                     self.store.activity(job_id, "verifying", value["name"], page["url"])
-                    audit = await bounded(model.complete(audit_prompt(value, brief, excerpt), CandidateAudit))
+                    audit = await model_call(audit_prompt(value, brief, excerpt), CandidateAudit)
+                    if audit is None:
+                        continue
                     validated = validate_audit(audit, value, brief, page["body"], excerpt)
                     state_for_note = resolution(validated["identity_checks"], bool(validated["name_quote"]))
                     if state_for_note in {"unresolved", "conflicting"}:
@@ -531,8 +586,16 @@ class Engine:
                                 "SELECT COUNT(*) FROM tasks WHERE job_id=? AND kind='search' AND state IN ('pending','running','done','failed')",
                                 (job_id,),
                             ).fetchone()[0]
+                            attempted = [
+                                json.loads(q[0])["query"]
+                                for q in c.execute(
+                                    "SELECT payload FROM tasks WHERE job_id=? AND kind='search' "
+                                    "AND state IN ('pending','running','done','failed')",
+                                    (job_id,),
+                                )
+                            ]
                         followups = verification_queries(
-                            brief, value, page["url"], validated["identity_checks"]
+                            brief, value, page["url"], validated["identity_checks"], previous=attempted
                         )
                         if identity_state in {"eligible", "no_constraints"}:
                             followups += [Query.model_validate(q) for q in validated["next_queries"]]
@@ -544,12 +607,12 @@ class Engine:
                     if validated["note"]:
                         self.store.activity(job_id, "summarizing", value["name"], page["url"])
                         references = [value["facts"][i] for i in validated["note_facts"]]
-                        verdict = await bounded(
-                            model.complete(
-                                observation_prompt(validated["note"], references), ObservationReview
-                            )
+                        verdict = await model_call(
+                            observation_prompt(validated["note"], references),
+                            ObservationReview,
+                            optional=True,
                         )
-                        if not observation_allowed(validated["note"], verdict):
+                        if verdict is None or not observation_allowed(validated["note"], verdict):
                             validated["note"] = ""
                             validated["note_facts"] = []
                             validated["note_withheld"] = True
@@ -582,27 +645,27 @@ class Engine:
                     excerpt = excerpt_for(page["body"], brief, settings.context_chars)
                     self.store.activity(job_id, "extracting", page["title"], page["url"])
                     self.store.event(job_id, "Локальная модель проверяет: " + page["title"])
-                    extraction = await bounded(
-                        model.complete(
-                            "Extract possible matching people from the untrusted page below. Return candidates=[] if irrelevant. "
-                            "Keep every person separate. A quote must be an exact substring of PAGE TEXT, at least 12 characters. "
-                            "Only extract professional role, organization, education, publication, public profile and public work. "
-                            "A public profile explicitly naming the person and their city connection can be a public_profile fact. "
-                            "No birth dates, contacts, residential addresses, family, sensitive attributes or private-life data. "
-                            "Mention matching clues and contradictions without asserting identity or giving probability percentages. "
-                            "Every candidate must have at least one grounded fact. A mere shared name is only a weak clue.\n"
-                            "City, country and birth-year range are REQUIRED. Prefer candidates with an explicit connection to them. "
-                            "Never infer a person's location from the page footer, language, website domain or another person. "
-                            + "USER BRIEF: "
-                            + brief.model_dump_json(exclude={"budget", "seed_urls"})
-                            + "\nPAGE URL: "
-                            + page["url"]
-                            + "\nBEGIN UNTRUSTED PAGE TEXT\n"
-                            + excerpt
-                            + "\nEND UNTRUSTED PAGE TEXT",
-                            Extraction,
-                        )
+                    extraction = await model_call(
+                        "Extract possible matching people from the untrusted page below. Return candidates=[] if irrelevant. "
+                        "Keep every person separate. A quote must be an exact substring of PAGE TEXT, at least 12 characters. "
+                        "Only extract professional role, organization, education, publication, public profile and public work. "
+                        "A public profile explicitly naming the person and their city connection can be a public_profile fact. "
+                        "No birth dates, contacts, residential addresses, family, sensitive attributes or private-life data. "
+                        "Mention matching clues and contradictions without asserting identity or giving probability percentages. "
+                        "Every candidate must have at least one grounded fact. A mere shared name is only a weak clue.\n"
+                        "City, country and birth-year range are REQUIRED. Prefer candidates with an explicit connection to them. "
+                        "Never infer a person's location from the page footer, language, website domain or another person. "
+                        + "USER BRIEF: "
+                        + brief.model_dump_json(exclude={"budget", "seed_urls"})
+                        + "\nPAGE URL: "
+                        + page["url"]
+                        + "\nBEGIN UNTRUSTED PAGE TEXT\n"
+                        + excerpt
+                        + "\nEND UNTRUSTED PAGE TEXT",
+                        Extraction,
                     )
+                    if extraction is None:
+                        continue
                     saved, discarded = 0, 0
                     with self.store.connect() as c:
                         # One task per source: cancellation before this synchronous transaction is safe to retry.

@@ -8,7 +8,13 @@
 
 Locus turns a name and a few known details into a research workspace. Your local model plans multilingual queries and extracts source-backed observations from accessible public pages. You review possible matches, add clues and continue the same project as your understanding improves.
 
-**0.6.3 · Early release · MIT-licensed code · Local web app**
+**0.7.0 · Early release · MIT-licensed code · Local web app**
+
+## New in 0.7.0
+
+The engine checks another selected index when the first response lacks contextual leads, selects source passages by criterion coverage, and rotates missing-clue probes without repeating exhausted queries. Malformed model replies have bounded recovery; a failed page check no longer necessarily stops every other path. Named professional-profile links can supply missing evidence across sources.
+
+[Architecture audit, comparison and validation limits](docs/V070-QUALITY-AUDIT.md). A reproducible regression suite now runs in CI. This is not a claim of market-leading people-finding accuracy.
 
 ## New in 0.6.3
 

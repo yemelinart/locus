@@ -378,10 +378,25 @@ class Store:
         with self.connect() as c:
             c.execute("UPDATE tasks SET state=?,error=? WHERE id=?", (state, error[:1000], task_id))
 
+    def retry_model_tasks(self, job_id):
+        """Retry only on an explicit run, never in startup recovery or the same pass."""
+        with self.connect() as c:
+            c.execute(
+                "UPDATE tasks SET state='pending',error='' WHERE job_id=? AND state='failed' "
+                "AND error LIKE 'MODEL_RESPONSE:%' AND kind IN ('analyze','review') "
+                "AND revision=(SELECT revision FROM jobs WHERE id=?)",
+                (job_id, job_id),
+            )
+
     def detail(self, job_id: str) -> dict:
         result = self.job(job_id)
         with self.connect() as c:
             result["queue"] = dict.fromkeys(("search", "fetch", "analyze", "review"), 0)
+            result["retryable_model_steps"] = c.execute(
+                "SELECT COUNT(*) FROM tasks WHERE job_id=? AND state='failed' "
+                "AND error LIKE 'MODEL_RESPONSE:%' AND kind IN ('analyze','review') AND revision=?",
+                (job_id, result["revision"]),
+            ).fetchone()[0]
             for row in c.execute(
                 "SELECT kind,COUNT(*) AS n FROM tasks WHERE job_id=? AND state='pending' GROUP BY kind",
                 (job_id,),
@@ -448,6 +463,13 @@ class Store:
             )
         result["linkage"] = build_linkage(result, decisions)
         result["conclusion"] = conclusion(result)
+        if (
+            result["retryable_model_steps"]
+            or result["queue"]["analyze"]
+            or result["queue"]["review"]
+            or result["conclusion"]["pending_cards"]
+        ):
+            result["conclusion"]["provisional"] = True
         from .progress import continuation_state
 
         result["continuation"] = continuation_state(result)

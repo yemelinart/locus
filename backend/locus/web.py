@@ -34,7 +34,7 @@ def validate_url(url: str) -> str:
         if "." not in host:
             raise ValueError("Нужен публичный домен") from None
     else:
-        if not address.is_global:
+        if not address.is_global or address.is_multicast:
             raise ValueError("Внутренние адреса не могут быть веб-источниками")
     host = host.encode("idna").decode("ascii").lower()
     netloc = f"[{host}]" if ":" in host else host
@@ -74,7 +74,8 @@ class PublicResolver(AbstractResolver):
         addresses = []
         for af, _, proto, _, address in results:
             ip = address[0]
-            if not ipaddress.ip_address(ip).is_global:
+            address_ip = ipaddress.ip_address(ip)
+            if not address_ip.is_global or address_ip.is_multicast:
                 raise ValueError("Источник разрешился во внутренний IP-адрес")
             addresses.append(
                 {
@@ -170,13 +171,25 @@ class Reader:
             soup = BeautifulSoup(html, "html.parser")
             from .trails import extract_links
 
-            links = extract_links(soup, final_url)
             title = soup.title.get_text(" ", strip=True) if soup.title else urlsplit(final_url).netloc
-            for tag in soup(["script", "style", "noscript", "nav", "footer", "header", "form", "svg"]):
+            if re.fullmatch(
+                r"(?i)\s*(?:just a moment[.!…]*|access denied|security verification|robot check)\s*", title
+            ):
+                raise ValueError("Сайт вернул проверку доступа вместо страницы; сведения не прочитаны.")
+            links = extract_links(soup, final_url)
+            content = soup.find("main") or soup.find("article")
+            for tag in soup(["script", "style", "noscript", "nav", "footer", "form", "svg"]):
                 tag.decompose()
-            body = (soup.find("main") or soup.find("article") or soup).get_text(" ", strip=True)
+            for tag in soup.find_all("header"):
+                # An article's own heading is identity context; site chrome is not.
+                if not content or content not in tag.parents:
+                    tag.decompose()
+            root = content or soup
+            short_profile = bool(content and root.find("h1"))
+            body = root.get_text(" ", strip=True)
         body = re.sub(r"\s+", " ", body).strip()[:64000]
-        if len(body) < 120:
+        minimum = 40 if content_type != "text/plain" and short_profile else 120
+        if len(body) < minimum:
             raise ValueError("На странице недостаточно доступного текста")
         return {
             "url": canonical_url(final_url),

@@ -71,6 +71,19 @@ export default function ResearchConclusion({ job }: { job: Detail }) {
           {t("Unavailable", "Недоступно")}: {c.unavailable_sources}
         </span>
       </div>
+      {!!job.retryable_model_steps && (
+        <p className="conclusion-pending">
+          {t(
+            "AI steps left unverified after invalid responses",
+            "Шагов ИИ осталось без проверки из-за неверных ответов",
+          )}
+          : {job.retryable_model_steps}.{" "}
+          {t(
+            "These are not negative findings. Continue to retry the saved steps.",
+            "Это не отрицательный результат поиска. Продолжение повторит сохранённые шаги.",
+          )}
+        </p>
+      )}
       {!!c.linked_matches && (
         <p>
           {t(

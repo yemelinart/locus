@@ -29,12 +29,19 @@ def source_identity(detail, source_id):
 def identity_navigation(link):
     if link.get("kind") == "declared_same_as":
         return True
+    # A named link to a professional profile can carry the missing country/school.
+    # Preserve pre-0.7 saved links without anchor metadata; relevant_links still
+    # requires the target name in this exact link's context.
+    profile = r"(?i)(?:(?:my|professional|public)\s+)?(?:profile|portfolio|профиль|портфолио|профіль)"
+    if link.get("kind") == "hyperlink":
+        label = link.get("label") or link.get("context", "").rsplit(":", 1)[-1].strip()
+        return bool(re.fullmatch(profile, label))
     # Profile navigation also includes portfolios/publication lists. Those are
     # useful after a match, but not for expanding an unconfirmed namesake.
     label = link.get("context", "").rsplit("→", 1)[-1].strip()
     return link.get("kind") == "profile_navigation" and bool(
         re.fullmatch(
-            r"(?i)(?:(?:my|brief|professional|public)\s+)?(?:bio(?:graphy)?|resume|résumé|cv|about(?: me)?|биография|резюме|про мене|о себе)",
+            r"(?i)(?:(?:my|brief|professional|public)\s+)?(?:bio(?:graphy)?|resume|résumé|cv|profile|portfolio|about(?: me)?|биография|резюме|профиль|профіль|портфолио|про мене|о себе)",
             label,
         )
     )

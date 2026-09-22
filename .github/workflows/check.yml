@@ -18,6 +18,7 @@ jobs:
       - run: .venv/bin/pip install --no-deps -e .
       - run: .venv/bin/ruff check backend
       - run: .venv/bin/pytest -q
+      - run: .venv/bin/python benchmarks/quality_suite.py --output .qa/quality.json --check
       - run: npm ci && npm run build
         working-directory: frontend
       - run: npx playwright install --with-deps chromium

@@ -86,7 +86,7 @@ class OllamaModel:
         ]
 
     async def complete(self, prompt, schema):
-        from .local_model import SYSTEM, parse_json
+        from .local_model import SYSTEM, ModelResponseError, structured_response
 
         # Recheck immediately before each inference, including aliases without a cloud suffix.
         data = await self.inspect(self.settings.model)
@@ -130,9 +130,9 @@ class OllamaModel:
                 )
             result = response.json()
         if result.get("done_reason") == "length":
-            raise ValueError(
+            raise ModelResponseError(
                 "Model output was truncated. Increase the output token budget or reduce thinking."
             )
         if result.get("error") or not result.get("done"):
             raise ValueError("Ollama did not complete its response. Check the local server.")
-        return schema.model_validate(parse_json(result.get("message", {}).get("content", "")))
+        return structured_response(result.get("message", {}).get("content", ""), schema)

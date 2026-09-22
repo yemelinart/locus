@@ -3,7 +3,7 @@ import re
 from urllib.parse import urlsplit, urlunsplit
 
 import httpx
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 from ..models import Settings
 
@@ -17,7 +17,13 @@ Write descriptions and explanations in {language}; keep original names and verba
 Return only the final JSON object, no markdown."""
 
 
+class ModelResponseError(ValueError):
+    """A completed inference produced unusable output, not an identity verdict."""
+
+
 def parse_json(text: str) -> dict:
+    if not isinstance(text, str):
+        raise ModelResponseError("Модель вернула неверный формат ответа")
     text = re.sub(r"<think>.*?</think>", "", text, flags=re.S).strip()
     text = re.sub(r"^```(?:json)?\s*|\s*```$", "", text).strip()
     try:
@@ -25,13 +31,26 @@ def parse_json(text: str) -> dict:
     except json.JSONDecodeError:
         start = text.find("{")
         if start < 0:
-            raise ValueError(
+            raise ModelResponseError(
                 "Локальная модель не вернула JSON. Попробуйте другую модель или формат JSON Schema."
             ) from None
-        result, _ = json.JSONDecoder().raw_decode(text[start:])
+        try:
+            result, _ = json.JSONDecoder().raw_decode(text[start:])
+        except json.JSONDecodeError:
+            raise ModelResponseError(
+                "Локальная модель вернула повреждённый JSON. Этот ответ не принят."
+            ) from None
     if not isinstance(result, dict):
-        raise ValueError("Модель вернула неверный формат ответа")
+        raise ModelResponseError("Модель вернула неверный формат ответа")
     return result
+
+
+def structured_response(content, schema):
+    try:
+        return schema.model_validate(parse_json(content or ""))
+    except ValidationError:
+        # Never echo untrusted output or prompt text through a schema exception.
+        raise ModelResponseError("Ответ модели не соответствует схеме. Этот ответ не принят.") from None
 
 
 def qwen_prompt(system: str, user: str) -> str:
@@ -192,12 +211,12 @@ class LocalModel:
             content = "\n".join(
                 o.get("content", "") for o in data.get("output", []) if o.get("type") == "message"
             )
-            return schema.model_validate(parse_json(content))
+            return structured_response(content, schema)
         choices = data.get("choices", [])
         if not choices:
-            raise ValueError("Локальная модель вернула пустой ответ")
+            raise ModelResponseError("Локальная модель вернула пустой ответ")
         if choices[0].get("finish_reason") == "length":
-            raise ValueError(
+            raise ModelResponseError(
                 "Model output was truncated. Increase the output token budget or reduce thinking."
             )
         content = (
@@ -205,4 +224,4 @@ class LocalModel:
             if endpoint == "/completions"
             else choices[0].get("message", {}).get("content")
         )
-        return schema.model_validate(parse_json(content or ""))
+        return structured_response(content, schema)

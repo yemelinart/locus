@@ -117,7 +117,8 @@ async def test_search_rotation_and_failures_have_real_audit(monkeypatch):
     assert search.last_audit[-1]["result_count"] == 1
     called.clear()
     await search.search(Query(query="Alex Rowan work"), Brief(name="Alex Rowan"))
-    assert called == ["brave"]
+    # A nonempty response without even the requested name warrants another index.
+    assert called == ["brave", "duckduckgo"]
     search.settings = Settings(search_backends=["bing"])
     with pytest.raises(ValueError, match="No selected"):
         await search.search(Query(query="Alex Rowan"), Brief(name="Alex Rowan"))

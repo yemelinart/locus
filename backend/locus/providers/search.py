@@ -9,6 +9,7 @@ from ddgs.engines import ENGINES
 
 from ..db import now
 from ..models import Brief, Query, Settings
+from ..retrieval import contextual_results, merge_results
 
 REGIONS = {
     "ru": "ru-ru",
@@ -109,6 +110,8 @@ class Search:
                     "All selected search engines are temporarily unavailable. Results are incomplete; retry later."
                 )
             engines = ready[:3]
+        gathered = []
+        nonempty = 0
         for backend in engines:
             began = time.monotonic()
             audit = {
@@ -123,7 +126,13 @@ class Search:
                 results = await self._request(text, query, brief, backend)
                 audit.update(status="ok" if results else "empty", result_count=len(results))
                 if results:
-                    return results
+                    gathered.extend(results)
+                    nonempty += 1
+                    # Nonempty does not mean relevant: a second selected index may
+                    # surface the missing connection. Keep weak leads, dedup and rank.
+                    usable = merge_results(gathered, brief, self.settings.results_per_query)
+                    if contextual_results(usable, brief) or nonempty >= 2:
+                        return usable
             except asyncio.CancelledError:
                 audit["status"] = "cancelled"
                 raise
@@ -137,7 +146,7 @@ class Search:
             raise ValueError(
                 "Selected search engines did not respond. Check their availability or try again later."
             )
-        return []
+        return merge_results(gathered, brief, self.settings.results_per_query)
 
     async def _request(self, text, query, brief, backend):
         if backend == "searxng":
