@@ -374,3 +374,19 @@ async def test_name_absence_skips_inference_and_revision_can_reconsider(tmp_path
     s.continue_research(job, brief, Budget(pages=1, queries=1, rounds=1))
     await engine.run(job)
     assert Model.extracts == 1
+
+
+def test_different_person_verdict_stays_a_conflict_even_when_geography_is_missing(tmp_path):
+    s = Store(tmp_path / "db.sqlite")
+    job, ids, _ = linked_fixture(s)
+    with s.connect() as c:
+        audit = json.loads(
+            c.execute("SELECT value FROM candidate_audits WHERE candidate_id=?", (ids[1],)).fetchone()[0]
+        )
+        audit["name_relation"] = "different"
+        c.execute("UPDATE candidate_audits SET value=? WHERE candidate_id=?", (dump(audit), ids[1]))
+    d = s.detail(job)
+    candidate = next(c for c in d["candidates"] if c["id"] == ids[1])
+    assert candidate["assessment"]["identity_status"] == "conflicting"
+    assert candidate["assessment"]["level"] == "conflicting"
+    assert s.review_link(job, *ids, "confirmed")["linkage"]["groups"][0]["identity_status"] == "conflicting"

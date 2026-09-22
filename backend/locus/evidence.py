@@ -82,6 +82,8 @@ def assess(candidate, source, brief, revision):
         checks,
         bool(name_quote) and current and audit.get("name_relation") in {"same_spelling", "plausible_variant"},
     )
+    if current and audit.get("name_relation") == "different":
+        identity_status = "conflicting"
     if not excluded:
         if identity_status == "conflicting":
             level = "conflicting"

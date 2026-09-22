@@ -93,7 +93,7 @@
 
 ## 0.6.0 — discovery and evidence across sources
 
-- 103 backend tests passed, including split criteria requiring an explicit source-link decision, rejection/undo, stale criteria, exclusions, contradictions, duplicate source families, redirect aliases, API project isolation, bounded link extraction, bidirectional names, provider cooldowns and skipping pages without a configured name.
+- 104 backend tests passed, including split criteria requiring an explicit source-link decision, rejection/undo, stale criteria, exclusions, contradictions, duplicate source families, redirect aliases, API project isolation, bounded link extraction, bidirectional names, provider cooldowns and skipping pages without a configured name.
 - Production TypeScript/Vite build passed. The full 16 browser scenarios passed. New link-review coverage includes combining evidence, undo, rejection, axe and 390 px layout. The mobile screenshot was inspected; a misleading empty-results message beneath a combined profile was corrected.
 - Fictional engine replay (`benchmarks/engine_replay.py`), with scripted semantics and search stubbed: exact 0.5 commit `6cc746eb2e555cbc01965e7c3ba81ac91fe7ff69` read one page and could not assemble split criteria. The new engine read two linked pages, produced one proposal and, only after simulated explicit correct human confirmation, one matching group. This measures the mechanism, not population recall or model accuracy.
 - The same replay with actual local `qwen/qwen3.8-27b`, reasoning off: two read pages, two separate cards, one proposal, zero combined matches before confirmation and one afterward, 142.76 seconds. No personal data or installed project database was used.
