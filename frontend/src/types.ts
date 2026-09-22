@@ -127,8 +127,36 @@ export type Job = {
   };
   settings_snapshot: Partial<Settings>;
 };
+export type LinkDecision = {
+  left_id: string;
+  right_id: string;
+  status: "confirmed" | "rejected" | "unreviewed";
+};
 export type Detail = Job & {
+  linkage?: {
+    proposals: (LinkDecision & {
+      from_source: string;
+      to_source: string;
+      context: string;
+      kind: string;
+      stale: boolean;
+    })[];
+    groups: {
+      id: string;
+      candidate_ids: string[];
+      identity_status: string;
+      source_count: number;
+      source_families: number;
+      identity_checks: {
+        field: string;
+        requested: string;
+        relation: string;
+        evidence: { source_id: string; quote: string }[];
+      }[];
+    }[];
+  };
   conclusion?: {
+    linked_matches?: number;
     unresolved_identity?: number;
     conflicting_identity?: number;
     state: string;

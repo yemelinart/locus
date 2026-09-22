@@ -8,9 +8,19 @@
 
 Locus turns a name and a few known details into a research workspace. Your local model plans multilingual queries and extracts source-backed observations from accessible public pages. You review possible matches, add clues and continue the same project as your understanding improves.
 
-**0.5.0 · Early release · MIT-licensed code · Local web app**
+**0.6.0 · Early release · MIT-licensed code · Local web app**
 
-## New in 0.5
+## New in 0.6
+
+The engine now separates broad discovery from strict result eligibility. It uses name-and-context query families, bidirectional Cyrillic/Latin spelling hypotheses and observed hyperlinks to find additional source pages. Retrieval can omit a criterion while the final match must still satisfy every supplied criterion.
+
+Locus proposes connections between source cards when it observes a name-scoped link. Review the source context and explicitly confirm that the records describe the same person. Only then can complementary criteria from different pages form a combined profile. Quotes retain their source references; conflicts, stale reviews and rejected cards cannot silently produce a positive result. Decisions can be undone. HTML links are navigation leads, not identity proof.
+
+The worker interleaves query results, favors less-explored hosts and temporarily avoids repeatedly failing search adapters. Old empty extractions can be reconsidered after criteria revision. SQLite schema 5 is backed up before migration. Previously saved pages retain their old snapshots; hyperlinks are available on newly read pages.
+
+[Product audit, implementation plan and honest limitations](docs/V06-PRODUCT-AUDIT.md) · [Engine architecture](docs/V06-ENGINE.md)
+
+## Earlier: 0.5
 
 City, country, birth-year range and structured public clues are now required matching criteria. Each is supported, unknown or contradicted, with a source quotation. Only records meeting every supplied criterion appear in the default results. Unverified connections and conflicts have separate filters; a namesake alone does not count as a match. A different current city does not disprove a past connection.
 

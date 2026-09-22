@@ -1,3 +1,4 @@
+import SourceLinks from "./SourceLinks";
 import ResearchActivity from "./ResearchActivity";
 import ResearchConclusion from "./ResearchConclusion";
 import EvidenceMeter from "./EvidenceMeter";
@@ -28,7 +29,7 @@ import {
   ExternalLink,
   CheckCircle2,
 } from "lucide-react";
-import type { Candidate, Detail, Source } from "../types";
+import type { Candidate, Detail, Source, LinkDecision } from "../types";
 import { languages, split, duration, date, host } from "../constants";
 function CandidateCard({
   candidate,
@@ -230,8 +231,10 @@ export default function ResearchView({
   remove,
   pending,
   initialTab = "candidates",
+  reviewLink,
 }: {
   initialTab?: string;
+  reviewLink: (decision: LinkDecision) => void;
   job: Detail;
   action: (a: string) => void;
   review: (id: string, status: Candidate["status"]) => void;
@@ -351,6 +354,11 @@ export default function ResearchView({
       </div>
       <ResearchActivity job={job} />
       <ResearchConclusion job={job} />
+      <SourceLinks
+        job={job}
+        review={reviewLink}
+        disabled={running || pending}
+      />
       <div className="workspace-columns">
         <div className="results-column">
           <div className="tabs" role="tablist">
@@ -481,7 +489,12 @@ export default function ResearchView({
                       ? t("Ищем обоснованные совпадения")
                       : job.status === "draft"
                         ? t("Всё готово к первому поиску")
-                        : t("Совпадений пока нет")}
+                        : job.conclusion?.linked_matches && filter === "active"
+                          ? t(
+                              "Combined evidence is shown above",
+                              "Сводные свидетельства показаны выше",
+                            )
+                          : t("Совпадений пока нет")}
                   </h3>
                   <p>
                     {running
@@ -493,9 +506,14 @@ export default function ResearchView({
                         ? t(
                             "Нажмите «Начать поиск». Приложение составит план и проверит доступные источники.",
                           )
-                        : t(
-                            "Посмотрите источники и журнал: отсутствие совпадений может означать недостаток данных или недоступность сайтов.",
-                          )}
+                        : job.conclusion?.linked_matches && filter === "active"
+                          ? t(
+                              "Original cards remain separate. Their combined criteria are shown in Evidence across sources.",
+                              "Исходные карточки сохранены отдельно. Общие критерии показаны в блоке сопоставления источников.",
+                            )
+                          : t(
+                              "Посмотрите источники и журнал: отсутствие совпадений может означать недостаток данных или недоступность сайтов.",
+                            )}
                   </p>
                 </div>
               )}

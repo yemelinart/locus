@@ -45,7 +45,7 @@ def test_v1_database_migrates_with_backup_without_losing_jobs(tmp_path):
     with sqlite3.connect(backup) as c:
         assert c.execute("PRAGMA user_version").fetchone()[0] == 1
     with migrated.connect() as c:
-        assert c.execute("PRAGMA user_version").fetchone()[0] == 4
+        assert c.execute("PRAGMA user_version").fetchone()[0] == 5
     assert migrated.detail(job["id"])["search_runs"] == []
 
 

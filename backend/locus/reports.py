@@ -156,6 +156,57 @@ def blocks(detail, lang="en"):
     )
     line("Created", "Создано", detail["created_at"])
     line("Report snapshot", "Снимок отчёта", datetime.now(timezone.utc).isoformat(timespec="seconds"))
+    linked_groups = detail.get("linkage", {}).get("groups", [])
+    if linked_groups:
+        section("Evidence across linked sources", "Свидетельства из связанных источников")
+        add(
+            "note",
+            t(
+                "Links were confirmed by the user. Original records remain separate. A shared name or a hyperlink alone does not establish identity. Source families are a conservative grouping, not proof of independent corroboration.",
+                "Связи подтверждены пользователем. Исходные записи сохранены отдельно. Совпадение имени или ссылка сами по себе не устанавливают личность. Группы источников не доказывают независимое подтверждение.",
+            ),
+        )
+        source_map = {s["id"]: s for s in detail["sources"]}
+        candidate_map = {c["id"]: c for c in detail["candidates"]}
+        states = {
+            "eligible": t("Required criteria supported", "Обязательные критерии подтверждены"),
+            "unresolved": t("Required criteria remain unknown", "Критерии не подтверждены"),
+            "conflicting": t("Conflicting evidence", "Противоречивые сведения"),
+            "no_constraints": t("No matching criteria supplied", "Критерии не заданы"),
+        }
+        for group in linked_groups:
+            add(
+                "h2",
+                candidate_map[group["candidate_ids"][0]]["value"]["name"]
+                + " · "
+                + states[group["identity_status"]],
+            )
+            line(
+                "Sources / source families",
+                "Источники / группы источников",
+                f"{group['source_count']} / {group['source_families']}",
+            )
+            for check in group["identity_checks"]:
+                add(
+                    "p",
+                    check["requested"]
+                    + ": "
+                    + {
+                        "supports": t("supported", "подтверждено"),
+                        "contradicts": t("contradiction", "противоречие"),
+                        "unknown": t("unknown", "неизвестно"),
+                    }[check["relation"]],
+                )
+                for evidence in check["evidence"]:
+                    add("quote", evidence["quote"])
+                    add("link", source_map[evidence["source_id"]]["url"])
+            if group["identity_status"] == "eligible":
+                for cid in group["candidate_ids"]:
+                    member = candidate_map[cid]
+                    for fact in member["assessment"]["checked_facts"]:
+                        add("fact", fact["statement"])
+                        add("quote", fact["quote"])
+                        add("link", source_map[member["source_id"]]["url"])
     confirmed_profile = [
         c
         for c in detail["candidates"]

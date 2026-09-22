@@ -6,7 +6,7 @@ from typing import Literal
 
 from pydantic import Field
 
-from .models import Model, Query
+from .models import Model
 
 
 def normalized(value):
@@ -122,17 +122,6 @@ def resolution(checks, has_name):
     if has_name and all(c["relation"] == "supports" for c in checks):
         return "eligible"
     return "unresolved"
-
-
-def anchored_query(query, brief):
-    """Preserve entered geography in discovery and follow-up queries; never silently drop it."""
-    text = query.query
-    for value in (brief.city.strip(), brief.country.strip()):
-        if value and normalized(value) not in normalized(text):
-            text += ' "' + value.replace('"', " ") + '"'
-    if len(text) > 350:
-        return None
-    return Query(query=text, language=query.language, reason=query.reason)
 
 
 def discovery_priority(result, brief):

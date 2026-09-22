@@ -214,3 +214,9 @@ class Continuation(Model):
     brief: Brief
     additional_budget: Budget | None = None
     start: bool = False
+
+
+class LinkReview(Model):
+    left_id: str = Field(pattern=r"^[a-f0-9]{16}$")
+    right_id: str = Field(pattern=r"^[a-f0-9]{16}$")
+    status: Literal["confirmed", "rejected", "unreviewed"]

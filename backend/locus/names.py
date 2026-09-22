@@ -51,8 +51,8 @@ GIVEN = {
     "сергій": ["Serhii", "Sergii", "Sergiy", "Сергей", "Sergey"],
     "александр": ["Alexander", "Aleksandr", "Oleksandr", "Олександр"],
     "олександр": ["Oleksandr", "Aleksandr", "Alexander"],
-    "юлия": ["Yulia", "Julia", "Yuliya"],
-    "юлія": ["Yuliia", "Yulia", "Julia"],
+    "юлия": ["Юлія", "Yulia", "Julia", "Yuliya", "Yuliia"],
+    "юлія": ["Юлия", "Yuliia", "Yulia", "Julia"],
     "наталья": ["Natalia", "Natalya"],
     "наталія": ["Nataliia", "Natalia"],
     "дмитрий": ["Dmitry", "Dmitri", "Dmytro"],
@@ -81,6 +81,21 @@ def variants(brief: Brief) -> list[dict]:
             for first in GIVEN.get(words[0].casefold(), []):
                 if re.search("[а-яіїєґ]", first, re.I):
                     last = words[-1]
+                    # Preserve unchanged surnames (e.g. Стешенко) before speculative spelling changes.
+                    add(
+                        " ".join([first, *words[1:-1], last]),
+                        "hypothesis",
+                        "Cross-language given-name hypothesis",
+                    )
+                    if re.search("[іїєґ]", first, re.I):
+                        conservative = last.translate(str.maketrans("иИ", "іІ"))
+                        if conservative.startswith("Е"):
+                            conservative = "Є" + conservative[1:]
+                        add(
+                            " ".join([first, *words[1:-1], conservative]),
+                            "hypothesis",
+                            "Surname spelling hypothesis",
+                        )
                     if re.search("[іїєґ]", first, re.I):
                         last = last.translate(str.maketrans("еЕиИёЁыЫэЭ", "єЄіІеЕиИеЕ"))
                     add(
@@ -88,6 +103,83 @@ def variants(brief: Brief) -> list[dict]:
                         "hypothesis",
                         "Cross-language spelling hypothesis",
                     )
+        if len(words) >= 2 and all(re.fullmatch(r"[A-Za-z'-]+", word) for word in words):
+            for given, spellings in GIVEN.items():
+                if words[0].casefold() not in {x.casefold() for x in spellings}:
+                    continue
+                uk = bool(re.search("[іїєґ]", given))
+                chunks = {
+                    "shch": "щ",
+                    "sch": "щ",
+                    "zh": "ж",
+                    "kh": "х",
+                    "ch": "ч",
+                    "sh": "ш",
+                    "ts": "ц",
+                    "ya": "я",
+                    "yu": "ю",
+                    "yo": "ё",
+                    "ye": "є" if uk else "е",
+                    "ie": "є" if uk else "е",
+                    "yi": "ї" if uk else "и",
+                }
+                letters = dict(
+                    zip(
+                        "abcdefghijklmnopqrstuvwxyz",
+                        [
+                            "а",
+                            "б",
+                            "к",
+                            "д",
+                            "е",
+                            "ф",
+                            "г",
+                            "х",
+                            "и",
+                            "й",
+                            "к",
+                            "л",
+                            "м",
+                            "н",
+                            "о",
+                            "п",
+                            "к",
+                            "р",
+                            "с",
+                            "т",
+                            "у",
+                            "в",
+                            "в",
+                            "кс",
+                            "й",
+                            "з",
+                        ],
+                    )
+                )
+                letters.update(
+                    {
+                        "i": "і" if uk else "и",
+                        "y": "и" if uk else "й",
+                        "g": "г",
+                        "h": "г" if uk else "х",
+                        "j": "й",
+                        "q": "к",
+                        "x": "кс",
+                    }
+                )
+
+                def cyr(word):
+                    return re.sub(
+                        "|".join(chunks) + "|[a-z]",
+                        lambda m: chunks.get(m[0], letters.get(m[0], m[0])),
+                        word.lower(),
+                    ).capitalize()
+
+                add(
+                    " ".join([given.capitalize(), *[cyr(w) for w in words[1:]]]),
+                    "hypothesis",
+                    "Reverse transliteration hypothesis",
+                )
         for mapping in [RUS, UKR]:
             words = value.split()
             roman = ["".join(mapping.get(c, c) for c in w.lower()).capitalize() for w in words]

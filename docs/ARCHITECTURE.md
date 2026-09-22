@@ -147,3 +147,7 @@ Provider/address changes invalidate outstanding frontend probes with a request r
 ## 0.5 identity criteria
 
 `identity.py` defines required criteria, validated three-state checks, geographic query anchors and reading priority. `verification.py` emits versioned criterion audits; `evidence.py` computes an all-criteria eligibility gate independently of evidence strength. UI and reports separate unresolved/conflicting leads from matching profiles. This supersedes the earlier treatment of city/country as planning-only hints. See [design and limitations](V05-IDENTITY.md).
+
+## 0.6 discovery and reviewed source linkage
+
+See [engine design](V06-ENGINE.md). Discovery no longer appends every original geographic phrase; mandatory result criteria remain. Observed HTML links feed a bounded source trail queue. Versioned, explicit user link decisions allow criterion evidence from separate pages to be combined without deleting or automatically merging source cards. Schema 5 backs up prior schemas and stores link context and redirect aliases.

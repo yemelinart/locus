@@ -3393,3 +3393,13 @@ dd {
 .identity-criteria small {
   color: var(--muted);
 }
+
+.source-links { margin: 20px 0; padding: 24px; background: var(--surface); border: 1px solid var(--border); border-radius: 16px; }
+.source-links h2 { font-size: 20px; margin: 0 0 12px; }
+.source-links h3 { font-size: 16px; margin: 12px 0; }
+.source-links a, .source-links blockquote { overflow-wrap: anywhere; }
+.source-links blockquote { margin: 10px 0; padding-left: 14px; border-left: 2px solid var(--border); font-size: 13px; }
+.source-link-proposal, .linked-profile { border-top: 1px solid var(--border); padding: 16px 0; }
+.source-link-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.linked-criterion { margin: 16px 0; font-size: 14px; }
+.source-links summary { cursor: pointer; padding: 10px 0; }

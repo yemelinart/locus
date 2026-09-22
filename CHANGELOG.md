@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.6.0 — 2026-09-21
+
+- Separated diverse retrieval hypotheses from mandatory result criteria. Added bidirectional name variants and missing-criterion queries; removed automatic addition of all original geographic phrases to every query.
+- Preserved public, name-scoped hyperlinks and Person sameAs declarations as navigation leads, with bounded following, domain/robots/URL checks and shared page budgets. Redirect aliases retain source provenance.
+- Added explicit user decisions for proposed source links and combined criterion evidence across confirmed records. Source cards remain separate; contradictory, rejected, excluded or stale evidence cannot silently strengthen a group. Reports include combined evidence with citations.
+- Interleaved query families after two page reads, prioritized less-explored hosts, added search-adapter cooldowns and revision-scoped empty-page analysis.
+- Schema 5 adds observed source links, redirect aliases and versioned link decisions; earlier schemas are backed up. No automatic inference on startup.
+- Added engine replay, local-model and public-web smoke harnesses, regression tests and a product audit. No market ranking or statistical accuracy claim.
+
 ## 0.5.0 — 2026-09-21
 
 - Required city, country, birth-year and structured-clue gates with quoted supports / unknown / contradictions. Namesakes without all supplied criteria are separated from matching results and report biographies.

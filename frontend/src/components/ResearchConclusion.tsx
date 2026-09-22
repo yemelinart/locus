@@ -71,6 +71,15 @@ export default function ResearchConclusion({ job }: { job: Detail }) {
           {t("Unavailable", "Недоступно")}: {c.unavailable_sources}
         </span>
       </div>
+      {!!c.linked_matches && (
+        <p>
+          {t(
+            "Matching profiles with evidence across linked sources",
+            "Подходящих профилей со свидетельствами из связанных источников",
+          )}
+          : {c.linked_matches}.
+        </p>
+      )}
       {!!c.unresolved_identity && (
         <p>
           {t(

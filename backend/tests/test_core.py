@@ -198,7 +198,7 @@ async def test_pipeline_keeps_namesakes_separate_and_drops_unquoted_facts(tmp_pa
     await Engine(store, FakeModel, FakeSearch, FakeReader).run(job["id"])
     detail = store.detail(job["id"])
     assert detail["status"] == "completed"
-    assert detail["stats"] == {"queries": 1, "pages": 2, "sources": 2, "candidates": 2}
+    assert detail["stats"] == {"queries": 3, "pages": 2, "sources": 2, "candidates": 2}
     assert len({c["id"] for c in detail["candidates"]}) == 2
     assert all(c["status"] == "unreviewed" and len(c["value"]["facts"]) == 1 for c in detail["candidates"])
 

@@ -165,8 +165,12 @@ class Reader:
             raise ValueError("В этой версии поддерживаются HTML и текстовые страницы")
         if content_type == "text/plain":
             title, body = urlsplit(final_url).netloc, html
+            links = []
         else:
             soup = BeautifulSoup(html, "html.parser")
+            from .trails import extract_links
+
+            links = extract_links(soup, final_url)
             title = soup.title.get_text(" ", strip=True) if soup.title else urlsplit(final_url).netloc
             for tag in soup(["script", "style", "noscript", "nav", "footer", "header", "form", "svg"]):
                 tag.decompose()
@@ -179,4 +183,5 @@ class Reader:
             "title": title[:400],
             "body": body,
             "content_hash": hashlib.sha256(body.encode()).hexdigest(),
+            "links": links,
         }

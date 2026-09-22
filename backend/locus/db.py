@@ -26,10 +26,10 @@ class Store:
         path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
         self.path = path
         with self.connect() as c:
-            if c.execute("PRAGMA user_version").fetchone()[0] > 4:
+            if c.execute("PRAGMA user_version").fetchone()[0] > 5:
                 raise RuntimeError("Database was created by a newer version of Locus")
             version = c.execute("PRAGMA user_version").fetchone()[0]
-            if version in {1, 2, 3}:
+            if version in {1, 2, 3, 4}:
                 backup = path.with_suffix(f".v{version}.backup.sqlite3")
                 if not backup.exists():
                     with sqlite3.connect(backup) as target:
@@ -67,6 +67,13 @@ class Store:
                     revision INTEGER NOT NULL, value TEXT NOT NULL, model TEXT NOT NULL, at TEXT NOT NULL,
                     PRIMARY KEY(candidate_id, revision)
                 );
+                CREATE TABLE IF NOT EXISTS link_decisions (
+                    job_id TEXT NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
+                    left_id TEXT NOT NULL REFERENCES candidates(id) ON DELETE CASCADE,
+                    right_id TEXT NOT NULL REFERENCES candidates(id) ON DELETE CASCADE,
+                    revision INTEGER NOT NULL, status TEXT NOT NULL, at TEXT NOT NULL,
+                    PRIMARY KEY(job_id,left_id,right_id)
+                );
                 CREATE TABLE IF NOT EXISTS events (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     job_id TEXT NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
@@ -88,6 +95,8 @@ class Store:
                 );
             """)
             for table, column, definition in [
+                ("sources", "links", "TEXT NOT NULL DEFAULT '[]'"),
+                ("sources", "url_aliases", "TEXT NOT NULL DEFAULT '[]'"),
                 ("jobs", "activity", "TEXT NOT NULL DEFAULT '{}'"),
                 ("jobs", "revision", "INTEGER NOT NULL DEFAULT 1"),
                 ("candidates", "review_revision", "INTEGER NOT NULL DEFAULT 1"),
@@ -98,7 +107,7 @@ class Store:
             c.execute(
                 "INSERT OR IGNORE INTO revisions(job_id,number,at,brief) SELECT id,1,created_at,brief FROM jobs"
             )
-            c.execute("PRAGMA user_version=4")
+            c.execute("PRAGMA user_version=5")
             c.execute("INSERT OR IGNORE INTO settings VALUES(1,?)", (dump(Settings().model_dump()),))
         path.chmod(0o600)
 
@@ -285,7 +294,7 @@ class Store:
                 from .verification import AUDIT_METHOD
 
                 key = AUDIT_METHOD + ":" + key
-            if kind in {"search", "review"}:
+            if kind in {"search", "review", "analyze"}:
                 key = f"r{revision}:" + key
             inserted = c.execute(
                 "INSERT OR IGNORE INTO tasks(id,job_id,kind,key,payload,revision) VALUES(?,?,?,?,?,?)",
@@ -308,7 +317,24 @@ class Store:
             order = (
                 "COALESCE(json_extract(payload,'$.priority'),0) DESC, rowid" if kind == "fetch" else "rowid"
             )
-            row = c.execute(sql + " ORDER BY " + order + " LIMIT 1", args).fetchone()
+            if kind == "fetch":
+                from urllib.parse import urlsplit
+
+                counts = {}
+                for source in c.execute("SELECT url FROM sources WHERE job_id=?", (job_id,)):
+                    host = urlsplit(source["url"]).hostname
+                    counts[host] = counts.get(host, 0) + 1
+                pending = c.execute(sql + " ORDER BY " + order + " LIMIT 1000", args).fetchall()
+
+                def priority(row):
+                    payload = json.loads(row["payload"])
+                    return payload.get("priority", 0) - 5 * counts.get(
+                        urlsplit(payload.get("url", "")).hostname, 0
+                    )
+
+                row = max(pending, key=priority) if pending else None
+            else:
+                row = c.execute(sql + " ORDER BY " + order + " LIMIT 1", args).fetchone()
             if not row:
                 return None
             c.execute("UPDATE tasks SET state='running' WHERE id=?", (row["id"],))
@@ -326,7 +352,7 @@ class Store:
             result["sources"] = [
                 dict(r)
                 for r in c.execute(
-                    "SELECT id,url,title,status,error,fetched_at,content_hash FROM sources WHERE job_id=? ORDER BY rowid DESC",
+                    "SELECT id,url,title,status,error,fetched_at,content_hash,links,url_aliases FROM sources WHERE job_id=? ORDER BY rowid DESC",
                     (job_id,),
                 )
             ]
@@ -368,6 +394,13 @@ class Store:
                     "at": row["at"],
                 }
         from .evidence import assess, conclusion
+        from .linkage import build_linkage
+
+        for source in result["sources"]:
+            source["links"] = json.loads(source["links"])
+            source["url_aliases"] = json.loads(source["url_aliases"])
+        with self.connect() as c:
+            decisions = [dict(r) for r in c.execute("SELECT * FROM link_decisions WHERE job_id=?", (job_id,))]
 
         sources = {s["id"]: s for s in result["sources"]}
         for candidate in result["candidates"]:
@@ -375,8 +408,28 @@ class Store:
             candidate["assessment"] = assess(
                 candidate, sources.get(candidate["source_id"], {}), result["brief"], result["revision"]
             )
+        result["linkage"] = build_linkage(result, decisions)
         result["conclusion"] = conclusion(result)
         return result
+
+    def review_link(self, job_id, left_id, right_id, status):
+        detail = self.detail(job_id)
+        if detail["status"] in {"running", "queued"}:
+            raise ValueError("Pause research before linking records")
+        left_id, right_id = sorted((left_id, right_id))
+        if not any(
+            p["left_id"] == left_id and p["right_id"] == right_id for p in detail["linkage"]["proposals"]
+        ):
+            raise ValueError("No current source-backed link proposal for these records")
+        if status not in {"confirmed", "rejected", "unreviewed"}:
+            raise ValueError("Invalid link decision")
+        with self.connect() as c:
+            c.execute(
+                "INSERT OR REPLACE INTO link_decisions VALUES(?,?,?,?,?,?)",
+                (job_id, left_id, right_id, detail["revision"], status, now()),
+            )
+        self.event(job_id, "User reviewed a source link: " + status)
+        return self.detail(job_id)
 
     def record_search(self, job_id, task_id, attempts):
         with self.connect() as c:

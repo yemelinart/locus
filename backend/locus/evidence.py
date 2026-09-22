@@ -78,7 +78,10 @@ def assess(candidate, source, brief, revision):
         )
         for r in required(brief, include_clues=True)
     ]
-    identity_status = resolution(checks, bool(name_quote) and current)
+    identity_status = resolution(
+        checks,
+        bool(name_quote) and current and audit.get("name_relation") in {"same_spelling", "plausible_variant"},
+    )
     if not excluded:
         if identity_status == "conflicting":
             level = "conflicting"
@@ -87,6 +90,9 @@ def assess(candidate, source, brief, revision):
         elif identity_status == "eligible" and level not in {"conflicting", "insufficient"}:
             level = "supported" if level == "limited" else level
     return {
+        "name_compatible": bool(name_quote)
+        and current
+        and audit.get("name_relation") in {"same_spelling", "plausible_variant"},
         "identity_checks": checks,
         "identity_status": identity_status,
         "level": level,
@@ -115,20 +121,29 @@ def conclusion(detail):
     ]
     eligible = [c for c in candidates if c["assessment"]["identity_status"] in {"eligible", "no_constraints"}]
     promising = [c for c in eligible if c["assessment"]["level"] in {"supported", "strong"}]
-    checked = sum(len(c["assessment"]["checked_facts"]) for c in eligible)
+    groups = [g for g in detail.get("linkage", {}).get("groups", []) if g["identity_status"] == "eligible"]
+    grouped_ids = {cid for g in groups for cid in g["candidate_ids"]}
+    promising = [c for c in promising if c["id"] not in grouped_ids]
+    checked = sum(
+        len(c["assessment"]["checked_facts"]) for c in candidates if c in eligible or c["id"] in grouped_ids
+    )
     state = "no_supported_findings"
     if not detail["stats"]["queries"] and not detail["sources"] and detail["status"] == "draft":
         state = "not_started"
     elif not any(s["status"] == "read" for s in detail["sources"]):
         state = "no_accessible_sources"
-    elif len(promising) > 1:
+    elif len(promising) + len(groups) > 1:
         state = "multiple_candidates"
-    elif promising:
+    elif promising or groups:
         state = "possible"
     elif checked:
         state = "limited"
     return {
-        "unresolved_identity": sum(c["assessment"]["identity_status"] == "unresolved" for c in candidates),
+        "linked_matches": len(groups),
+        "unresolved_identity": sum(
+            c["assessment"]["identity_status"] == "unresolved" and c["id"] not in grouped_ids
+            for c in candidates
+        ),
         "conflicting_identity": sum(c["assessment"]["identity_status"] == "conflicting" for c in candidates),
         "state": state,
         "provisional": detail["status"] in {"running", "queued", "paused"},

@@ -197,7 +197,7 @@ async def test_completed_pipeline_can_run_same_query_with_new_criteria_without_d
     store.continue_research(job, brief, Budget(queries=3, pages=5, rounds=3))
     await engine.run(job)
     detail = store.detail(job)
-    assert detail["stats"]["queries"] == 2
+    assert detail["stats"]["queries"] == 2 * original["stats"]["queries"]
     assert len(detail["candidates"]) == len(original["candidates"]) == 2
     assert json.loads((project_path(store, job) / "research.json").read_text())["status"] == "completed"
 

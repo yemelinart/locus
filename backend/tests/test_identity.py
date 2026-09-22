@@ -1,8 +1,8 @@
 import pytest
 from locus.db import Store, dump, now, uid
 from locus.evidence import assess
-from locus.identity import IdentityCheck, anchored_query, discovery_priority, resolution, validate_checks
-from locus.models import Brief, Query, Settings
+from locus.identity import IdentityCheck, discovery_priority, resolution, validate_checks
+from locus.models import Brief, Settings
 from locus.providers.search import target_region
 from locus.reports import markdown
 from locus.verification import AUDIT_METHOD
@@ -80,15 +80,6 @@ def test_geographic_reading_priority_and_region_are_not_identity_evidence(tmp_pa
     assert s.detail(j)["conclusion"]["reviewed_claims"] == 0
     assert target_region(Settings(), b, "en") == "ua-uk"
     assert target_region(Settings(search_region="de-de"), b, "en") == "de-de"
-
-
-def test_queries_cannot_drop_supplied_city_and_region():
-    b = brief()
-    b.city = "Alexandria, Kirovohrad region"
-    q = anchored_query(Query(query='"Alex Rowan" photographer', language="en"), b)
-    assert b.city in q.query and b.country in q.query
-    assert anchored_query(q, b) == q
-    assert anchored_query(Query(query="x" * 345), b) is None
 
 
 def test_another_city_is_not_an_explicit_denial_of_past_connection():

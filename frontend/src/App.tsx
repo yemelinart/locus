@@ -279,7 +279,7 @@ export default function App() {
             <ArrowUpRight size={15} />
           </button>
           <div className="sidebar-meta">
-            <span>{t("v0.5 · early release", "v0.5 · ранняя версия")}</span>
+            <span>{t("v0.6 · early release", "v0.6 · ранняя версия")}</span>
             <span>{t("Открытый код")}</span>
           </div>
         </div>
@@ -368,6 +368,16 @@ export default function App() {
                 action={(action) =>
                   void run(async () => {
                     await api(`/jobs/${selected}/${action}`, "POST");
+                    await refresh();
+                  })
+                }
+                reviewLink={(decision) =>
+                  void run(async () => {
+                    await api(
+                      `/jobs/${selected}/links/review`,
+                      "POST",
+                      decision,
+                    );
                     await refresh();
                   })
                 }

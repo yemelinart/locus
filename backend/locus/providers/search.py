@@ -2,6 +2,7 @@ import asyncio
 import json
 import sys
 import time
+from datetime import datetime, timezone
 
 import httpx
 from ddgs.engines import ENGINES
@@ -64,6 +65,25 @@ class Search:
         self.settings = settings
         self.last_audit = []
         self.cursor = 0
+        self.health = {}
+
+    def restore_health(self, attempts):
+        for a in sorted(attempts, key=lambda a: a["at"]):
+            try:
+                age = (datetime.now(timezone.utc) - datetime.fromisoformat(a["at"])).total_seconds()
+            except (ValueError, TypeError):
+                continue
+            if age < 120:
+                self._health_result(a["engine"], a["status"], cooldown=max(0, 120 - age))
+
+    def _health_result(self, engine, status, cooldown=120):
+        health = self.health.setdefault(engine, {"failures": 0, "until": 0})
+        if status in {"ok", "empty"}:
+            health.update(failures=0, until=0)
+        elif status == "failed":
+            health["failures"] += 1
+            if health["failures"] >= 2:
+                health["until"] = time.monotonic() + cooldown
 
     async def search(self, query: Query, brief: Brief) -> list[dict]:
         text = query.query
@@ -79,10 +99,16 @@ class Search:
             ]
             if not engines:
                 raise ValueError("No selected search adapter is installed. Check search settings.")
-            # Rotate over enabled adapters; at most one fallback. Every attempt is recorded.
+            # Rotate over enabled adapters; up to two fallbacks, skipping temporary outages. Every attempt is recorded.
             offset = self.cursor % len(engines)
             self.cursor += 1
-            engines = (engines[offset:] + engines[:offset])[:2]
+            rotated = engines[offset:] + engines[:offset]
+            ready = [e for e in rotated if self.health.get(e, {}).get("until", 0) <= time.monotonic()]
+            if not ready:
+                raise ValueError(
+                    "All selected search engines are temporarily unavailable. Results are incomplete; retry later."
+                )
+            engines = ready[:3]
         for backend in engines:
             began = time.monotonic()
             audit = {
@@ -106,6 +132,7 @@ class Search:
             finally:
                 audit["seconds"] = round(time.monotonic() - began, 3)
                 self.last_audit.append(audit)
+                self._health_result(backend, audit["status"])
         if all(a["status"] == "failed" for a in self.last_audit):
             raise ValueError(
                 "Selected search engines did not respond. Check their availability or try again later."

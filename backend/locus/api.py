@@ -13,7 +13,7 @@ from starlette.concurrency import run_in_threadpool
 from . import __version__, archive, reports
 from .db import Store, dump
 from .engine import Engine, friendly_error
-from .models import Brief, Budget, Continuation, Query, Refinement, Review, Settings
+from .models import Brief, Budget, Continuation, LinkReview, Query, Refinement, Review, Settings
 from .names import variants
 from .providers.local_model import LocalModel
 from .providers.search import Search, catalog
@@ -252,6 +252,14 @@ def create_app(data_dir: Path | None = None, run_worker: bool = True) -> FastAPI
             ],
         )
         return {"ok": True}
+
+    @app.post("/api/jobs/{job_id}/links/review")
+    async def review_link(job_id: str, request: LinkReview):
+        editable(job_id)
+        try:
+            return store.review_link(job_id, request.left_id, request.right_id, request.status)
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
 
     @app.get("/api/jobs/{job_id}/analysis")
     async def job_analysis(job_id: str):

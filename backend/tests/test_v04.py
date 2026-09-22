@@ -236,7 +236,7 @@ def test_schema_three_backup_and_future_version_rejection(tmp_path):
     with sqlite3.connect(path.with_suffix(".v3.backup.sqlite3")) as c:
         assert c.execute("PRAGMA user_version").fetchone()[0] == 3
     with store.connect() as c:
-        c.execute("PRAGMA user_version=5")
+        c.execute("PRAGMA user_version=6")
     with pytest.raises(RuntimeError):
         Store(path)
 
