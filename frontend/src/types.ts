@@ -134,6 +134,17 @@ export type LinkDecision = {
   status: "confirmed" | "rejected" | "unreviewed";
 };
 export type Detail = Job & {
+  leads?: {
+    id: string;
+    url: string;
+    title: string;
+    snippet: string;
+    query: string;
+    state: string;
+    source_id: string | null;
+    error: string;
+    rank: number;
+  }[];
   retryable_model_steps?: number;
   queue?: { search: number; fetch: number; analyze: number; review: number };
   continuation?: {

@@ -1,6 +1,7 @@
 import SourceLinks from "./SourceLinks";
 import ResearchActivity from "./ResearchActivity";
 import ResearchConclusion from "./ResearchConclusion";
+import DiscoveryLeads from "./DiscoveryLeads";
 import EvidenceMeter from "./EvidenceMeter";
 import ContinueDialog, { type Continuation } from "./ContinueDialog";
 import { t, getPreferences, locale } from "../i18n";
@@ -392,6 +393,7 @@ export default function ResearchView({
       </div>
       <ResearchActivity job={job} />
       <ResearchConclusion job={job} />
+      <DiscoveryLeads key={job.id} job={job} />
       <SourceLinks
         job={job}
         review={reviewLink}

@@ -180,7 +180,9 @@ def test_retrieval_can_cross_languages_without_relaxing_eligibility():
     assert any("Долинская" in q.query for q in queries)
     assert len({q.query.casefold() for q in queries}) == len(queries)
     previous = [q.query for q in queries]
-    assert not portfolio(b, queries, previous, 12)
+    # Later rounds now investigate unused spellings, but never recycle these queries.
+    later = portfolio(b, queries, previous, 12)
+    assert not set(previous).intersection(q.query for q in later)
     followups = verification_queries(
         b,
         {"name": b.name},

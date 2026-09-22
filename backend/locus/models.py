@@ -176,6 +176,7 @@ class Query(Model):
     query: str = Field(min_length=2, max_length=350)
     language: str = Field(default="en", max_length=10)
     reason: str = Field(default="", max_length=300)
+    scope: Literal["auto", "worldwide"] = "auto"
 
     @field_validator("query")
     @classmethod

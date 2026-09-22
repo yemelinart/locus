@@ -38,9 +38,11 @@ LABELS = {
 }
 
 
-def target_region(settings, brief, language):
+def target_region(settings, brief, language, scope="auto"):
     if settings.search_region != "auto":
         return settings.search_region
+    if scope == "worldwide":
+        return "wt-wt"
     country = brief.country.strip().casefold()
     if country in {"ukraine", "украина", "україна"}:
         return REGIONS["uk"]
@@ -182,7 +184,7 @@ class Search:
         )
         payload = {
             "query": text,
-            "region": target_region(self.settings, brief, query.language),
+            "region": target_region(self.settings, brief, query.language, query.scope),
             "max_results": self.settings.results_per_query,
             "backend": backend,
             "timeout": self.settings.request_timeout,

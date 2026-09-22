@@ -337,13 +337,41 @@ class Store:
                 ).rowcount
             return bool(inserted)
 
-    def task(self, job_id: str, kind: str | None = None) -> dict | None:
+    def discover(self, job_id, payload):
+        inserted = self.enqueue(job_id, "fetch", payload["url"], payload)
+        if not inserted:
+            # Preserve provenance even when the URL is already read/blocked. Never
+            # reset its state or discard source-trail depth and ancestry.
+            with self.connect() as c:
+                row = c.execute(
+                    "SELECT id,payload FROM tasks WHERE job_id=? AND kind='fetch' AND key=?",
+                    (job_id, payload["url"]),
+                ).fetchone()
+                if row:
+                    old = json.loads(row["payload"])
+                    if not old.get("snippet"):
+                        merged = payload | old
+                        for key in ("snippet", "query", "discovered_at"):
+                            if not merged.get(key):
+                                merged[key] = payload.get(key, "")
+                        c.execute("UPDATE tasks SET payload=? WHERE id=?", (dump(merged), row["id"]))
+        return inserted
+
+    def coverage_task(self, job_id):
+        from .discovery import COVERAGE_TAG
+
+        return self.task(job_id, "search", reason_prefix=COVERAGE_TAG)
+
+    def task(self, job_id: str, kind: str | None = None, reason_prefix=None) -> dict | None:
         with self.connect() as c:
             sql = "SELECT * FROM tasks WHERE job_id=? AND state='pending'"
             args = [job_id]
             if kind:
                 sql += " AND kind=?"
                 args.append(kind)
+            if reason_prefix:
+                sql += " AND json_extract(payload,'$.reason') LIKE ?"
+                args.append(reason_prefix + "%")
             order = (
                 "COALESCE(json_extract(payload,'$.priority'),0) DESC, rowid" if kind == "fetch" else "rowid"
             )
@@ -413,6 +441,13 @@ class Store:
                 dict(r) | {"value": json.loads(r["value"])}
                 for r in c.execute("SELECT * FROM candidates WHERE job_id=? ORDER BY rowid", (job_id,))
             ]
+            discovered = [
+                dict(r) | {"payload": json.loads(r["payload"])}
+                for r in c.execute(
+                    "SELECT id,payload,state FROM tasks WHERE job_id=? AND kind='fetch' ORDER BY rowid",
+                    (job_id,),
+                )
+            ]
             result["events"] = [
                 dict(r)
                 for r in c.execute(
@@ -452,6 +487,9 @@ class Store:
         for source in result["sources"]:
             source["links"] = json.loads(source["links"])
             source["url_aliases"] = json.loads(source["url_aliases"])
+        from .leads import build_leads
+
+        result["leads"] = build_leads(result, discovered)
         with self.connect() as c:
             decisions = [dict(r) for r in c.execute("SELECT * FROM link_decisions WHERE job_id=?", (job_id,))]
 

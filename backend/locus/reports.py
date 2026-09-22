@@ -241,6 +241,22 @@ def blocks(detail, lang="en"):
                 add("fact", f["statement"])
                 add("quote", f["quote"])
                 add("link", source["url"])
+    if detail.get("leads"):
+        section("Discovered links · identity unverified", "Найденные ссылки · личность не установлена")
+        add(
+            "p",
+            t(
+                "Search previews and page titles are leads, not verified biographical facts. Blocked pages can be opened manually.",
+                "Заголовки и текст поисковой выдачи — зацепки, а не проверенные факты биографии. Недоступные для автоматического чтения страницы можно открыть вручную.",
+            ),
+        )
+        for lead in detail["leads"]:
+            add("h2", lead["title"])
+            add("link", lead["url"])
+            line("Page status", "Статус страницы", lead["state"])
+            if lead["query"]:
+                line("Discovery query", "Поисковый запрос", lead["query"])
+
     section("02 / Starting information", "02 / Исходные сведения")
     brief = detail["brief"]
     budget = brief["budget"]

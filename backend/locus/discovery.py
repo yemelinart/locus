@@ -10,6 +10,95 @@ from .places import resolve, search_spellings
 from .verification import useful_query
 
 DISCOVERY_TAG = "Context discovery v2"
+COVERAGE_TAG = "Spelling coverage v1"
+
+
+def coverage_queries(brief, limit=4):
+    """Bounded name-only recall probes, before any expensive model interpretation.
+
+    A historical city need not appear on today's professional profile. Required
+    criteria still govern acceptance, never this discovery pass.
+    """
+    options = variants(brief)
+    supplied = [n["name"] for n in options if n["origin"] == "supplied"]
+    roman_surnames = {
+        "".join(mapping.get(c, c) for c in name.split()[-1].casefold())
+        for name in supplied
+        for mapping in (RUS, UKR)
+    }
+    latin = [
+        n["name"]
+        for n in options
+        if re.fullmatch(r"[A-Za-z' -]+", n["name"]) and n["name"].split()[-1].casefold() in roman_surnames
+    ]
+    # Common given-name spellings precede mechanical transliterations; speculative
+    # changes to every surname vowel do not consume the first discovery pass.
+    common = [
+        n["name"]
+        for n in options
+        if n["name"] in latin and n["reason"] == "Name and transliteration hypothesis"
+    ]
+    other_script = [
+        n["name"]
+        for n in options
+        if bool(re.search(r"[а-яіїєґ]", n["name"], re.I)) != bool(re.search(r"[а-яіїєґ]", brief.name, re.I))
+    ]
+    choices = list(dict.fromkeys([brief.name, *common[:1], *supplied[1:3], *latin, *other_script]))[:3]
+    result = []
+    for name in choices:
+        language = "en" if name in latin and "en" in brief.languages else brief.languages[0]
+        result.append(
+            Query(
+                query=quoted(name),
+                language=language,
+                scope="worldwide",
+                reason=COVERAGE_TAG + ": name without geographic restriction",
+            )
+        )
+    # A loose reversed-order probe complements exact phrases and changes no name tokens.
+    alternate = next((n for n in choices if n in latin), choices[0])
+    if len(alternate.split()) == 2:
+        result.append(
+            Query(
+                query=" ".join(reversed(alternate.split())),
+                language=result[choices.index(alternate)].language,
+                scope="worldwide",
+                reason=COVERAGE_TAG + ": reversed name, unquoted",
+            )
+        )
+    for item in options:
+        if item["name"] not in choices:
+            result.append(
+                Query(
+                    query=quoted(item["name"]),
+                    language=brief.languages[0],
+                    scope="worldwide",
+                    reason=COVERAGE_TAG + ": additional spelling",
+                )
+            )
+    return result[:limit]
+
+
+def planning_findings(detail):
+    """Unverified namesakes can expose a missing criterion, not supply target biography."""
+    result = []
+    for c in detail["candidates"]:
+        a = c["assessment"]
+        if a["excluded"] or c["status"] == "rejected" or a["identity_status"] == "conflicting":
+            continue
+        linked = a["identity_status"] == "eligible"
+        result.append(
+            {
+                "name": c["value"]["name"],
+                "review": c["status"],
+                "identity_checks": a["identity_checks"],
+                "facts": a["checked_facts"] if linked else [],
+                "description": a["note"]
+                if linked
+                else "Identity unresolved; no target biography established.",
+            }
+        )
+    return result[-12:]
 
 
 def quoted(value):
@@ -83,7 +172,7 @@ def portfolio(brief, planned, previous, limit, first_round=False):
     if limit <= 0:
         return []
     seen = {normalized(x) for x in previous}
-    seeds = seed_queries(brief)
+    seeds = [*coverage_queries(brief, limit=24), *seed_queries(brief)]
     # Keep unused spelling/clue hypotheses available in later passes too. Completed
     # queries are removed below; a resumed run must never recycle its first batch.
     choices = []

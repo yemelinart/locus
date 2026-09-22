@@ -8,7 +8,14 @@ from contextlib import suppress
 import httpx
 
 from .db import Store, dump, now, uid
-from .discovery import DISCOVERY_TAG, portfolio, verification_queries
+from .discovery import (
+    COVERAGE_TAG,
+    DISCOVERY_TAG,
+    coverage_queries,
+    planning_findings,
+    portfolio,
+    verification_queries,
+)
 from .identity import discovery_priority, resolution
 from .models import Brief, Extraction, Plan, Query
 from .names import variants
@@ -256,8 +263,22 @@ class Engine:
             for source in prior_detail["sources"]:
                 self.expand_source(job_id, source["id"], brief, prior_detail)
             prior_queries = prior_detail["queries"]
+            if not brief.seed_urls:
+                scheduled = sum(q["state"] in {"pending", "running", "done", "failed"} for q in prior_queries)
+                room = max(0, brief.budget.queries - scheduled)
+                previous = {
+                    normalize(q["payload"]["query"]).casefold()
+                    for q in prior_queries
+                    if q["revision"] == job["revision"]
+                }
+                for query in coverage_queries(brief):
+                    key = normalize(query.query).casefold()
+                    if key not in previous and room:
+                        room -= self.store.enqueue(job_id, "search", key, query.model_dump())
+            prior_queries = self.store.detail(job_id)["queries"]
             if prior_queries and not any(
-                q["payload"].get("reason", "").startswith(DISCOVERY_TAG) for q in prior_queries
+                q["payload"].get("reason", "").startswith((DISCOVERY_TAG, COVERAGE_TAG))
+                for q in prior_queries
             ):
                 scheduled = sum(q["state"] in {"pending", "running", "done", "failed"} for q in prior_queries)
                 room = min(4, max(0, brief.budget.queries - scheduled))
@@ -278,7 +299,10 @@ class Engine:
                 job = self.store.job(job_id)
                 stats = job["stats"]
                 # Finish extraction before spending another network request.
-                task = self.store.task(job_id, "review") or self.store.task(job_id, "analyze")
+                task = None
+                if stats["queries"] < brief.budget.queries and stats["pages"] < brief.budget.pages:
+                    task = self.store.coverage_task(job_id)
+                task = task or self.store.task(job_id, "review") or self.store.task(job_id, "analyze")
                 # Two page reads per retrieval turn prevent one noisy result set exhausting the budget.
                 if (
                     not task
@@ -311,20 +335,7 @@ class Engine:
                     previous = [
                         q["payload"]["query"] for q in detail["queries"] if q["revision"] == job["revision"]
                     ]
-                    clues = [
-                        {
-                            "name": c["value"]["name"],
-                            "description": c["assessment"]["note"],
-                            "review": c["status"],
-                            "evidence": c["assessment"],
-                            "facts": c["assessment"]["checked_facts"],
-                            "identity_checks": c["assessment"]["identity_checks"],
-                        }
-                        for c in detail["candidates"]
-                        if not c["assessment"]["excluded"]
-                        and c["status"] != "rejected"
-                        and c["assessment"]["identity_status"] != "conflicting"
-                    ][-12:]
+                    clues = planning_findings(detail)
                     remaining = brief.budget.queries - stats["queries"]
                     prompt = (
                         f"Plan up to {min(12, remaining)} useful web queries for public professional profiles and public work. "
@@ -417,13 +428,14 @@ class Engine:
                         except (ValueError, KeyError):
                             continue
                         if domain_allowed(url, brief.include_domains, brief.exclude_domains):
-                            added += self.store.enqueue(
+                            added += self.store.discover(
                                 job_id,
-                                "fetch",
-                                url,
                                 {
                                     "url": url,
                                     "title": result.get("title", "")[:400],
+                                    "snippet": result.get("snippet", "")[:1000],
+                                    "query": query.query,
+                                    "discovered_at": now(),
                                     "priority": discovery_priority(result, brief),
                                 },
                             )

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.0 — 2026-09-22
+
+- Added a bounded spelling-discovery pass before model inference, including common Latin spellings, worldwide automatic-region probes and an unquoted reversed-name query. Existing budgets, explicit region/domain filters and URL/query history remain in force.
+- Retained discovered links, titles, search previews and query provenance independently of fetched/verified biography. Blocked profiles remain visible as unverified links in the UI and reports; historical saved titles are supported.
+- Unresolved namesake biographies no longer supply public-work facts to the global planner. Later rounds can investigate unused spelling probes without repeating completed ones.
+- Added discovery-before-inference, inaccessible-profile, legacy-lead and bilingual browser regressions. Real selected adapters returned a relevant professional link during a 10.27-second, four-query discovery-only diagnostic; identity was not established by this test.
+- Schema remains 5; new optional JSON fields are read with defaults. No cloud inference, paid data source, automated identity merge or privacy-invasive collection added.
+
 ## 0.7.0 — 2026-09-22
 
 - Weak nonempty search results can trigger another selected index. Canonical URL deduplication and name/place/school signals rank discovery results; snippets never establish identity.

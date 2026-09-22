@@ -8,7 +8,13 @@
 
 Locus turns a name and a few known details into a research workspace. Your local model plans multilingual queries and extracts source-backed observations from accessible public pages. You review possible matches, add clues and continue the same project as your understanding improves.
 
-**0.7.0 · Early release · MIT-licensed code · Local web app**
+**0.8.0 · Early release · MIT-licensed code · Local web app**
+
+## New in 0.8.0
+
+A bounded name-spelling discovery pass runs before local-model analysis, including common Latin spellings without a city restriction. Discovered links remain visible even when the page cannot be read automatically. Unverified namesake biographies no longer feed the global planning context. Identity acceptance remains a separate check.
+
+[Discovery failure analysis and architecture](docs/V080-DISCOVERY.md).
 
 ## New in 0.7.0
 

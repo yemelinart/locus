@@ -3539,3 +3539,30 @@ dd {
   font-size: 12px;
   line-height: 1.65;
 }
+/* Discovery stays distinct from verified identity evidence. */
+.discovery-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
+  gap: 16px;
+  margin: 20px 0;
+}
+.discovery-card {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 16px;
+  min-width: 0;
+}
+.discovery-card a {
+  display: block;
+  overflow-wrap: anywhere;
+  margin-bottom: 10px;
+  font-weight: 600;
+}
+.discovery-card small {
+  display: block;
+  margin: 8px 0;
+  overflow-wrap: anywhere;
+}
+.discovery-card details {
+  font-size: 13px;
+}
