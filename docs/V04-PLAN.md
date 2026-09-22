@@ -1,0 +1,11 @@
+# 0.4 — reviewed findings and visible research
+
+Schema 4 adds jobs.activity and candidate_audits (candidate, criteria revision, model, time, validated review). Schema 1–3 receives a SQLite backup before migration; previous findings and manual reviews remain unchanged. Older app versions reject schema 4. No model launches during migration.
+
+Pipeline: plan → validate name-scoped queries → search → fetch → select relevant source windows → extract literal quotations → queue a separate local semantic review → validate fact/clue references → present supported claims. Unsupported/ambiguous statements are withheld from the public-work summary. Old cards remain available but are pending semantic review; no confident legacy score is carried forward. Criteria changes invalidate semantic conclusions and schedule review on the next explicit start. Each candidate remains separate.
+
+The same local model performs extraction and review; the second pass is fallible and is not independent corroboration. No probability percentage or guarantee of finding a person. A custom model note is labelled as an interpretation with cited accepted fact indices. It receives a further local check against only those claims, withholding unsupported details or identity assertions. Audit-method versions also scope review task keys, so a method update can review earlier results. Structured conclusion and coverage counts are generated deterministically. Missing evidence never becomes contradiction. Public professional/educational findings only; no private-life dossiers or face identification.
+
+Activity state records the actual phase and target before each request. Animation uses only that state and actual sources, pauses with the job and respects reduced motion. It never invents a visited website or a percentage complete.
+
+Validation: negative fixtures for homonyms, unsupported paraphrases, fabricated quotes/IDs, contradictory clues and missing clues; stale review, pause/retry without duplicate cards, strict budgets, tail-of-page extraction, blocked sources and no-results summaries; browser tests for real activity rendering, empty/partial conclusions, bilingual display, references, reduced motion and user confirmation. Local-model fixture checks remain separate from deterministic tests and must be reported honestly.

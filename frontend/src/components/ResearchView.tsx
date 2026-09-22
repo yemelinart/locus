@@ -1,3 +1,5 @@
+import ResearchActivity from "./ResearchActivity";
+import ResearchConclusion from "./ResearchConclusion";
 import EvidenceMeter from "./EvidenceMeter";
 import ContinueDialog, { type Continuation } from "./ContinueDialog";
 import { t, getPreferences, locale } from "../i18n";
@@ -8,7 +10,6 @@ import {
   ArrowDownToLine,
   ArrowUpRight,
   Check,
-  CircleDot,
   Clock3,
   Cpu,
   Globe2,
@@ -26,17 +27,9 @@ import {
   AlertCircle,
   ExternalLink,
   CheckCircle2,
-  CircleHelp,
 } from "lucide-react";
 import type { Candidate, Detail, Source } from "../types";
-import {
-  languages,
-  statusName,
-  split,
-  duration,
-  date,
-  host,
-} from "../constants";
+import { languages, split, duration, date, host } from "../constants";
 function CandidateCard({
   candidate,
   source,
@@ -47,6 +40,10 @@ function CandidateCard({
   review: (status: Candidate["status"]) => void;
 }) {
   const v = candidate.value;
+  const checked = candidate.assessment?.checked_facts || [];
+  const withheld = v.facts.filter(
+    (_, i) => !checked.some((f) => f.index === i),
+  );
   return (
     <article className={`candidate-card ${candidate.status}`}>
       <div className="candidate-heading">
@@ -59,7 +56,12 @@ function CandidateCard({
         </div>
         <div>
           <h3>{v.name}</h3>
-          <p>{v.description}</p>
+          <p>
+            {t(
+              "Public profile · source-based review",
+              "Публичный профиль · проверка по источнику",
+            )}
+          </p>
         </div>
         <span className={`review-label ${candidate.status}`}>
           {candidate.assessment?.review_outdated
@@ -80,33 +82,93 @@ function CandidateCard({
           )}
         </p>
       )}
-      {v.matches.length > 0 && (
-        <div className="match-notes">
-          {v.matches.map((m, i) => (
-            <span key={i}>
-              <CircleDot size={12} />
-              {m}
-            </span>
-          ))}
+      {candidate.assessment?.note && (
+        <div className="candidate-ai-note">
+          <strong>{t("AI interpretation", "Комментарий ИИ")}</strong>
+          <p>{candidate.assessment.note}</p>
+          <small>
+            {t("Claims: ", "Утверждения: ")}
+            {candidate.assessment.note_facts.map((i) => (
+              <a key={i} href={`#fact-${candidate.id}-${i}`}>
+                [{i + 1}]{" "}
+              </a>
+            ))}
+          </small>
         </div>
       )}
-      {v.contradictions.length > 0 && (
+      {!!candidate.assessment?.flags.length && (
         <div className="contradictions">
           <AlertCircle size={15} />
-          <span>{v.contradictions.join(" · ")}</span>
+          <span>{candidate.assessment.flags.join(" · ")}</span>
         </div>
       )}
+      {!candidate.assessment?.model_reviewed && (
+        <p className="review-stale">
+          {t(
+            "Semantic review is pending. Continue research to check these claims against their source.",
+            "Смысловая проверка ещё не выполнена. Продолжите исследование, чтобы проверить утверждения по источнику.",
+          )}
+        </p>
+      )}
+      {checked.length > 0 && (
+        <h4 className="profile-overview-title">
+          {t(
+            "Public work & education · sourced overview",
+            "Публичная деятельность и образование · по источнику",
+          )}
+        </h4>
+      )}
       <div className="facts">
-        {v.facts.map((f, i) => (
-          <div className="fact" key={i}>
+        {checked.map((f) => (
+          <div
+            className="fact"
+            id={`fact-${candidate.id}-${f.index}`}
+            key={f.index}
+          >
             <p>
               <CheckCircle2 size={15} />
-              {f.statement}
+              <span>
+                [{f.index + 1}] {f.statement}
+              </span>
             </p>
             <blockquote>{f.quote}</blockquote>
+            {source && (
+              <a
+                className="source-link"
+                href={source.url}
+                target="_blank"
+                rel="noreferrer"
+              >
+                {host(source.url)}
+                <ExternalLink size={12} />
+              </a>
+            )}
           </div>
         ))}
       </div>
+      {withheld.length > 0 && (
+        <details className="withheld-claims">
+          <summary>
+            {withheld.length}{" "}
+            {t(
+              "claims withheld from the overview",
+              "утверждений не включено в обзор",
+            )}
+          </summary>
+          <p>
+            {t(
+              "Original extraction. These claims are unreviewed, ambiguous or unsupported; they do not increase the match assessment.",
+              "Исходное извлечение. Утверждения не проверены, неоднозначны или не поддержаны источником; они не усиливают оценку совпадения.",
+            )}
+          </p>
+          {withheld.map((f, i) => (
+            <div key={i}>
+              <p>{f.statement}</p>
+              <blockquote>{f.quote}</blockquote>
+            </div>
+          ))}
+        </details>
+      )}
       <div className="candidate-footer">
         {source && (
           <a
@@ -279,28 +341,8 @@ export default function ResearchView({
           </div>
         ))}
       </div>
-      {(job.reason || running) && (
-        <div className={`run-status ${job.status}`}>
-          <span>
-            {running ? (
-              <Loader2 className="spin" size={18} />
-            ) : job.status === "completed" ? (
-              <CheckCircle2 size={18} />
-            ) : (
-              <CircleHelp size={18} />
-            )}
-          </span>
-          <div>
-            <strong>{statusName[job.status]}</strong>
-            <p>
-              {job.status === "running"
-                ? t(job.events[0]?.message || "") || t("Подготовка поиска…")
-                : t(job.reason)}
-            </p>
-          </div>
-          {running && <span className="live-indicator">LIVE</span>}
-        </div>
-      )}
+      <ResearchActivity job={job} />
+      <ResearchConclusion job={job} />
       <div className="workspace-columns">
         <div className="results-column">
           <div className="tabs" role="tablist">
@@ -524,7 +566,14 @@ export default function ResearchView({
                     })}
                   </time>
                   <span className="event-dot" />
-                  <p>{t(e.message)}</p>
+                  <div>
+                    {e.level === "model" && (
+                      <strong className="event-model-label">
+                        {t("Local AI observation", "Наблюдение локального ИИ")}
+                      </strong>
+                    )}
+                    <p>{t(e.message)}</p>
+                  </div>
                 </div>
               ))}
             </div>

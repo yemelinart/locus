@@ -42,8 +42,8 @@ export default function EvidenceMeter({
       <div className="evidence-explanation">
         <p>
           {t(
-            "Evidence support, not an identity probability. Exact supplied names and structured clues in recorded quotes are counted. Spelling hypotheses, model opinions and missing information do not increase support.",
-            "Обоснованность, а не вероятность личности. Учитываются заданные имена и структурированные ориентиры в записанных цитатах. Гипотезы написания, мнение модели и отсутствие сведений не усиливают оценку.",
+            "Evidence support, not an identity probability. A separate local-model pass reviews what each quote says about this candidate. The review can still be wrong; it is not independent corroboration.",
+            "Обоснованность, а не вероятность личности. Отдельный проход локальной модели проверяет, что цитата говорит именно об этом кандидате. Проверка тоже может ошибаться и не является независимым подтверждением.",
           )}
         </p>
         {a.name_quote ? (
@@ -95,8 +95,8 @@ export default function EvidenceMeter({
         )}
         <p>
           {t(
-            "Name alone: limited. Name + one clue type: supporting. Name + two clue types: multiple supporting clues. This does not establish that every quote describes the same person.",
-            "Только имя — слабая обоснованность. Имя и один тип ориентиров — есть поддержка. Имя и два типа — несколько ориентиров. Это не доказывает, что все цитаты относятся к одному человеку.",
+            "Only reviewed claims and source-linked clues can raise support above limited. Missing or outdated review keeps claims out of the overview. Two clue types on one page are not two independent sources.",
+            "Оценку выше слабой дают только проверенные утверждения и ориентиры с цитатами. При отсутствии или устаревании проверки утверждения не входят в обзор. Два типа ориентиров на одной странице — не два независимых источника.",
           )}
         </p>
       </div>

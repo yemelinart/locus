@@ -66,11 +66,11 @@ def fixture(store):
 def test_evidence_support_uses_quotes_not_model_opinions_and_missing_is_not_conflict(tmp_path):
     store = Store(tmp_path / "test.sqlite")
     job, cid, brief = fixture(store)
-    assert store.detail(job)["candidates"][0]["assessment"]["level"] == "strong"
+    assert store.detail(job)["candidates"][0]["assessment"]["level"] == "limited"
     brief.evidence_clues[1].text = "Different Labs"
     store.continue_research(job, brief)
     a = store.detail(job)["candidates"][0]["assessment"]
-    assert a["level"] == "supported" and len(a["missing"]) == 1 and a["flags"] == []
+    assert a["level"] == "limited" and len(a["missing"]) == 2 and a["flags"] == []
     brief.evidence_clues = []
     store.continue_research(job, brief)
     assert store.detail(job)["candidates"][0]["assessment"]["level"] == "limited"
@@ -85,7 +85,7 @@ def test_filters_archive_and_restore_without_erasing_evidence(tmp_path):
     brief.exclude_domains = ["example.org"]
     detail = store.continue_research(job, brief)
     assert detail["candidates"][0]["assessment"]["excluded"]
-    assert detail["revisions"][0]["previous_assessments"][0]["assessment"]["level"] == "strong"
+    assert detail["revisions"][0]["previous_assessments"][0]["assessment"]["level"] == "limited"
     brief.exclude_domains = []
     detail = store.continue_research(job, brief)
     assert not detail["candidates"][0]["assessment"]["excluded"]

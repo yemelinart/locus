@@ -57,7 +57,7 @@ def files(detail, lang):
         ).encode(),
         "report.md": reports.markdown(detail, lang).encode(),
         "README.txt": (
-            "Locus public-source research archive\nOpen index.html in a browser. Sources contain recorded quotations and links, not full copies of websites.\nEvidence support is a rule-based aid, not an identity probability. Cards remain separate.\nresearch.json includes criteria revisions, prior assessments, activity and current findings.\nDeleting the project in Locus does not delete previously exported copies or migration backups.\n"
+            "Locus public-source research archive\nOpen index.html in a browser. Sources contain recorded quotations and links, not full copies of websites.\nEvidence support combines quote validation and fallible local-model review, not an identity probability. Cards remain separate until your confirmation.\nresearch.json includes criteria revisions, prior assessments, activity and current findings. Raw extractions and source text files may include quotations withheld from the reviewed report.\nDeleting the project in Locus does not delete previously exported copies or migration backups.\n"
         ).encode(),
     }
     for source in detail["sources"]:

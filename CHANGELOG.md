@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.4.0 — 2026-09-21
+
+- Added durable real-phase activity and an animated research observatory, with observed source domains, paused state, animation toggle and reduced-motion support.
+- Added a separate local semantic-review queue. Claim attribution, clue relations and exact citations are validated before statements enter the profile overview. Invalid IDs, duplicates and unsupported statements fail closed.
+- AI observations cite accepted claim indices and receive a further local check against only those claims before appearing in the research view and journal. Unsupported details and identity assertions are withheld. Reports distinguish partial findings, missing support and source-access failures, and combine only user-confirmed cards into a public-work overview.
+- Relevant source windows can include mentions near the end of a long page. Planned and follow-up queries must include a target-name hypothesis (or an explicit public clue with a first name for surname changes).
+- Schema 4 adds versioned candidate audits and worker activity. Databases from schemas 1–3 are backed up. Legacy and revised cards lose semantic support until checked on the next explicit start; pause/retry preserves cards.
+- Added adversarial deterministic fixtures and an opt-in eight-case local-model smoke harness. No identity-probability calibration, automatic photo collection or independent verification claim.
+
 ## 0.3.2 — 2026-09-21
 
 - Added a bilingual first-visit introduction and reusable About & guide page, with capabilities, four setup steps and practical limitations. Search form remains separate.

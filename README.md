@@ -8,7 +8,15 @@
 
 Locus turns a name and a few known details into a research workspace. Your local model plans multilingual queries and extracts source-backed observations from accessible public pages. You review possible matches, add clues and continue the same project as your understanding improves.
 
-**0.3.2 · Early release · MIT-licensed code · Local web app**
+**0.4.0 · Early release · MIT-licensed code · Local web app**
+
+## New in 0.4
+
+The research view now shows an animated observatory driven by the actual worker phase and source URLs. Motion pauses with the research and respects reduced-motion preferences.
+
+After extraction, a separate local-model pass checks whether each quotation supports the claim about the candidate. Invalid references, unsupported or unclear statements stay out of the profile overview. Each reviewed card explains matching clues and potential contradictions; missing data is not a contradiction. A custom AI observation includes references to reviewed claims. Overall conclusions distinguish unreadable sources, insufficient evidence, partial findings and promising candidates. Manually confirmed cards can form a sourced overview of public work and education.
+
+This is a second pass by the same model, not independent corroboration. It still requires human review. Schema 4 backs up earlier databases; existing cards need semantic review on the next explicit research start. Full biography generation, automatic photo collection and identity probability percentages are not provided. Photos, if present, can be checked manually on original profile pages.
 
 ## Why use Locus?
 
@@ -47,7 +55,7 @@ Web search needs the internet. Search providers receive your queries, and visite
 
 ## Read the results with care
 
-A quotation supports traceability, not truth or identity. The evidence meter describes support from supplied clues; it is **not an identity probability**. Review the sources and contradictions before confirming a candidate.
+A quotation supports traceability, not truth or identity. The evidence meter describes reviewed support from supplied clues; it is **not an identity probability**. Review the sources and contradictions before confirming a candidate.
 
 Coverage is limited by search indexes, robots rules and accessible public HTML. Login-only content, blocked pages and JavaScript-dependent content may be unavailable. Direct social-network connectors, PDF/OCR ingestion, a validated 8 GB memory profile and a signed desktop installer are not included in this release.
 

@@ -26,10 +26,10 @@ class Store:
         path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
         self.path = path
         with self.connect() as c:
-            if c.execute("PRAGMA user_version").fetchone()[0] > 3:
+            if c.execute("PRAGMA user_version").fetchone()[0] > 4:
                 raise RuntimeError("Database was created by a newer version of Locus")
             version = c.execute("PRAGMA user_version").fetchone()[0]
-            if version in {1, 2}:
+            if version in {1, 2, 3}:
                 backup = path.with_suffix(f".v{version}.backup.sqlite3")
                 if not backup.exists():
                     with sqlite3.connect(backup) as target:
@@ -62,6 +62,11 @@ class Store:
                     source_id TEXT NOT NULL REFERENCES sources(id) ON DELETE CASCADE,
                     value TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'unreviewed'
                 );
+                CREATE TABLE IF NOT EXISTS candidate_audits (
+                    candidate_id TEXT NOT NULL REFERENCES candidates(id) ON DELETE CASCADE,
+                    revision INTEGER NOT NULL, value TEXT NOT NULL, model TEXT NOT NULL, at TEXT NOT NULL,
+                    PRIMARY KEY(candidate_id, revision)
+                );
                 CREATE TABLE IF NOT EXISTS events (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     job_id TEXT NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
@@ -83,6 +88,7 @@ class Store:
                 );
             """)
             for table, column, definition in [
+                ("jobs", "activity", "TEXT NOT NULL DEFAULT '{}'"),
                 ("jobs", "revision", "INTEGER NOT NULL DEFAULT 1"),
                 ("candidates", "review_revision", "INTEGER NOT NULL DEFAULT 1"),
                 ("tasks", "revision", "INTEGER NOT NULL DEFAULT 1"),
@@ -92,7 +98,7 @@ class Store:
             c.execute(
                 "INSERT OR IGNORE INTO revisions(job_id,number,at,brief) SELECT id,1,created_at,brief FROM jobs"
             )
-            c.execute("PRAGMA user_version=3")
+            c.execute("PRAGMA user_version=4")
             c.execute("INSERT OR IGNORE INTO settings VALUES(1,?)", (dump(Settings().model_dump()),))
         path.chmod(0o600)
 
@@ -138,6 +144,7 @@ class Store:
             if not row:
                 raise KeyError(job_id)
             result = dict(row)
+            result["activity"] = json.loads(result["activity"])
             result["brief"] = Brief.model_validate_json(result["brief"]).model_dump()
             result["settings_snapshot"] = json.loads(result["settings_snapshot"])
             result["stats"] = {
@@ -164,13 +171,32 @@ class Store:
         return [self.job(i) for i in ids]
 
     def update(self, job_id: str, **values):
-        allowed = {"brief", "status", "reason", "active_seconds", "rounds", "settings_snapshot", "revision"}
+        allowed = {
+            "brief",
+            "status",
+            "reason",
+            "active_seconds",
+            "rounds",
+            "settings_snapshot",
+            "revision",
+            "activity",
+        }
         if not set(values).issubset(allowed):
             raise ValueError("Invalid job fields")
         values["updated_at"] = now()
         with self.connect() as c:
             c.execute(
                 f"UPDATE jobs SET {','.join(k + '=?' for k in values)} WHERE id=?", (*values.values(), job_id)
+            )
+
+    def activity(self, job_id, phase, target="", url=""):
+        self.update(job_id, activity=dump({"phase": phase, "target": target[:500], "url": url, "at": now()}))
+
+    def save_audit(self, candidate_id, revision, value, model):
+        with self.connect() as c:
+            c.execute(
+                "INSERT OR REPLACE INTO candidate_audits VALUES(?,?,?,?,?)",
+                (candidate_id, revision, dump(value), model, now()),
             )
 
     def event(self, job_id: str, message: str, level: str = "info"):
@@ -255,7 +281,11 @@ class Store:
     def enqueue(self, job_id: str, kind: str, key: str, payload: dict) -> bool:
         with self.connect() as c:
             revision = c.execute("SELECT revision FROM jobs WHERE id=?", (job_id,)).fetchone()[0]
-            if kind == "search":
+            if kind == "review":
+                from .verification import AUDIT_METHOD
+
+                key = AUDIT_METHOD + ":" + key
+            if kind in {"search", "review"}:
                 key = f"r{revision}:" + key
             inserted = c.execute(
                 "INSERT OR IGNORE INTO tasks(id,job_id,kind,key,payload,revision) VALUES(?,?,?,?,?,?)",
@@ -324,13 +354,25 @@ class Store:
                 }
                 for r in c.execute("SELECT * FROM revisions WHERE job_id=? ORDER BY number DESC", (job_id,))
             ]
-        from .evidence import assess
+            audits = {}
+            for row in c.execute(
+                "SELECT a.* FROM candidate_audits a JOIN candidates x ON x.id=a.candidate_id WHERE x.job_id=? ORDER BY a.revision",
+                (job_id,),
+            ):
+                audits[row["candidate_id"]] = json.loads(row["value"]) | {
+                    "revision": row["revision"],
+                    "model": row["model"],
+                    "at": row["at"],
+                }
+        from .evidence import assess, conclusion
 
         sources = {s["id"]: s for s in result["sources"]}
         for candidate in result["candidates"]:
+            candidate["verification"] = audits.get(candidate["id"])
             candidate["assessment"] = assess(
                 candidate, sources.get(candidate["source_id"], {}), result["brief"], result["revision"]
             )
+        result["conclusion"] = conclusion(result)
         return result
 
     def record_search(self, job_id, task_id, attempts):

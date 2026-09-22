@@ -9,6 +9,7 @@ from locus.db import Store
 from locus.engine import Engine, grounded_facts
 from locus.models import Brief, Budget, Extraction, Fact, Plan, Settings
 from locus.providers.local_model import parse_json, qwen_prompt
+from locus.verification import CandidateAudit, ObservationReview
 from locus.web import PublicResolver, canonical_url, domain_allowed, validate_url
 from pydantic import ValidationError
 
@@ -119,6 +120,16 @@ class FakeModel:
         self.plans = 0
 
     async def complete(self, prompt, schema):
+        if schema is ObservationReview:
+            return ObservationReview(grounded=True, asserts_identity=False)
+        if schema is CandidateAudit:
+            return CandidateAudit(
+                name_relation="same_spelling",
+                name_quote="Alex Rowan created Example Language.",
+                claims=[{"index": 0, "verdict": "supported"}],
+                note="The source attributes Example Language to Alex Rowan; identity remains unconfirmed.",
+                note_facts=[0],
+            )
         if schema is Plan:
             self.plans += 1
             return Plan.model_validate(

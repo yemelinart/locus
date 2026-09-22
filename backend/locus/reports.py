@@ -95,6 +95,35 @@ def blocks(detail, lang="en"):
             "Цитаты проверены на присутствие в прочитанном тексте. Личность и смысл каждого утверждения требуют проверки человеком. Текст источников и прежние результаты сохраняют исходный язык.",
         ),
     )
+    if detail.get("conclusion"):
+        from .evidence import CONCLUSIONS
+
+        summary = detail["conclusion"]
+        section("Research conclusion", "Вывод исследования")
+        add("h2", CONCLUSIONS[summary["state"]][lang == "ru"])
+        add(
+            "p",
+            t(
+                "Supported claims / cards awaiting semantic review / source access failures",
+                "Утверждения после проверки / карточки в ожидании проверки / недоступные источники",
+            )
+            + f": {summary['reviewed_claims']} / {summary['pending_cards']} / {summary['unavailable_sources']}",
+        )
+        add(
+            "note",
+            t(
+                "This is a partial snapshot of the checked sources, not a complete biography or a probability of identity. No result does not prove that no information exists.",
+                "Это частичный результат проверки источников, а не полная биография или вероятность личности. Отсутствие результата не доказывает отсутствие информации.",
+            ),
+        )
+        if summary["provisional"]:
+            add(
+                "p",
+                t(
+                    "Research is in progress or paused; this conclusion is provisional.",
+                    "Исследование выполняется или на паузе; вывод предварительный.",
+                ),
+            )
     section("01 / Overview", "01 / Обзор")
     line("Status", "Статус", detail["status"])
     if detail["reason"]:
@@ -117,6 +146,33 @@ def blocks(detail, lang="en"):
     )
     line("Created", "Создано", detail["created_at"])
     line("Report snapshot", "Снимок отчёта", datetime.now(timezone.utc).isoformat(timespec="seconds"))
+    confirmed_profile = [
+        c
+        for c in detail["candidates"]
+        if c["status"] == "confirmed"
+        and not c.get("assessment", {}).get("excluded")
+        and not c.get("assessment", {}).get("review_outdated")
+        and c.get("assessment", {}).get("checked_facts")
+    ]
+    if confirmed_profile:
+        section(
+            "Your confirmed profile — public work and education",
+            "Подтверждённый вами профиль — публичная деятельность и образование",
+        )
+        add(
+            "note",
+            t(
+                "This overview combines only cards you confirmed under the current criteria. Quotations and original links remain attached. It is not a complete life history.",
+                "Обзор объединяет только карточки, подтверждённые вами при текущих критериях. Цитаты и исходные ссылки сохранены. Это не полная история жизни.",
+            ),
+        )
+        source_map = {s["id"]: s for s in detail["sources"]}
+        for candidate in confirmed_profile:
+            source = source_map[candidate["source_id"]]
+            for f in candidate["assessment"]["checked_facts"]:
+                add("fact", f["statement"])
+                add("quote", f["quote"])
+                add("link", source["url"])
     section("02 / Starting information", "02 / Исходные сведения")
     brief = detail["brief"]
     budget = brief["budget"]
@@ -211,8 +267,8 @@ def blocks(detail, lang="en"):
             add(
                 "note",
                 t(
-                    "Rule-based support, not an identity probability. Only supplied names and structured clues found in quotations count. Missing clues are not contradictions.",
-                    "Оценка по правилам, а не вероятность личности. Учитываются только заданные имена и структурированные ориентиры, найденные в цитатах. Отсутствие сведений не означает противоречия.",
+                    "A local model reviewed claim attribution and clue support. This second pass can still be wrong and is not independent corroboration or an identity probability. Missing clues are not contradictions.",
+                    "Локальная модель проверяет, кому относится утверждение и поддерживает ли цитата ориентир. Повторная проверка тоже может ошибаться и не является независимым подтверждением или вероятностью личности. Отсутствие сведений не означает противоречия.",
                 ),
             )
             for clue in assessment["supported"]:
@@ -230,17 +286,44 @@ def blocks(detail, lang="en"):
                         "Пользовательская оценка относится к предыдущим критериям. Проверьте заново.",
                     ),
                 )
-        add("p", value["description"])
-        for m in value["matches"]:
+        reviewed = assessment.get("model_reviewed", False) if assessment else False
+        if not reviewed:
             add(
-                "bullet",
-                t("Model suggestion (review required): ", "Предположение модели (нужна проверка): ") + m,
+                "note",
+                t(
+                    "Semantic review is pending. Earlier extracted claims are withheld from the profile summary. Continue research to review them.",
+                    "Смысловая проверка ещё не выполнена. Прежние извлечённые утверждения не включены в обзор профиля. Продолжите исследование для проверки.",
+                ),
             )
-        for m in value["contradictions"]:
-            add("warning", t("Contradiction: ", "Противоречие: ") + m)
-        for f in value["facts"]:
-            add("fact", f["statement"])
+        if assessment and assessment.get("note"):
+            line(
+                "AI interpretation (review required)", "Комментарий ИИ (требует проверки)", assessment["note"]
+            )
+            line(
+                "Refers to claims",
+                "Ссылается на утверждения",
+                ", ".join(str(i + 1) for i in assessment["note_facts"]),
+            )
+        for flag in (assessment or {}).get("flags", []):
+            add("warning", flag)
+        if assessment and assessment.get("checked_facts"):
+            add(
+                "h2",
+                t(
+                    "Public work and education — sourced overview",
+                    "Публичная деятельность и образование — обзор по источникам",
+                ),
+            )
+        for f in (assessment or {}).get("checked_facts", []):
+            add("fact", f"[{f['index'] + 1}] " + f["statement"])
             add("quote", f["quote"])
+            add("link", source["url"])
+        if assessment and assessment.get("withheld_count"):
+            line(
+                "Claims withheld from this overview",
+                "Утверждений не включено в обзор",
+                str(assessment["withheld_count"]),
+            )
         add("link", source["url"])
         line("Fetched", "Прочитано", source["fetched_at"])
     section("05 / Open questions and next steps", "05 / Открытые вопросы и следующие шаги")

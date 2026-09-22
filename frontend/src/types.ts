@@ -71,6 +71,12 @@ export type Candidate = {
       | "strong"
       | "conflicting"
       | "excluded";
+    model_reviewed: boolean;
+    audit_outdated: boolean;
+    checked_facts: (Fact & { index: number })[];
+    withheld_count: number;
+    note: string;
+    note_facts: number[];
     name_quote: string;
     supported: (EvidenceClue & { quote: string })[];
     missing: EvidenceClue[];
@@ -80,6 +86,7 @@ export type Candidate = {
     revision: number;
     method: string;
   };
+  verification?: { at: string; model: string; revision: number };
   id: string;
   source_id: string;
   status: "unreviewed" | "confirmed" | "rejected";
@@ -92,6 +99,7 @@ export type Candidate = {
   };
 };
 export type Job = {
+  activity?: { phase: string; target: string; url: string; at: string };
   revision: number;
   id: string;
   name: string;
@@ -111,6 +119,17 @@ export type Job = {
   settings_snapshot: Partial<Settings>;
 };
 export type Detail = Job & {
+  conclusion?: {
+    state: string;
+    provisional: boolean;
+    promising_ids: string[];
+    reviewed_claims: number;
+    pending_cards: number;
+    conflicting_cards: number;
+    confirmed_cards: number;
+    read_sources: number;
+    unavailable_sources: number;
+  };
   revisions: { number: number; at: string; brief: Brief }[];
   search_runs: SearchRun[];
   sources: Source[];

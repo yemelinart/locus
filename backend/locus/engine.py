@@ -11,6 +11,17 @@ from .models import Brief, Extraction, Plan, Query
 from .names import variants
 from .providers.local_model import LocalModel
 from .providers.search import Search
+from .verification import (
+    AUDIT_METHOD,
+    CandidateAudit,
+    ObservationReview,
+    audit_prompt,
+    excerpt_for,
+    observation_allowed,
+    observation_prompt,
+    useful_query,
+    validate_audit,
+)
 from .web import Reader, canonical_url, domain_allowed
 
 
@@ -122,6 +133,7 @@ class Engine:
             return await asyncio.wait_for(awaitable, max(0.001, remaining))
 
         def complete(reason: str):
+            self.store.activity(job_id, "finished")
             self.store.update(job_id, status="completed", reason=reason)
             self.store.event(job_id, reason)
 
@@ -144,6 +156,10 @@ class Engine:
             for page in unread:
                 if domain_allowed(page["url"], brief.include_domains, brief.exclude_domains):
                     self.store.enqueue(job_id, "analyze", page["id"], {"source_id": page["id"]})
+            # Review legacy/stale candidate cards only after an explicit start.
+            for candidate in self.store.detail(job_id)["candidates"]:
+                if not candidate["assessment"]["model_reviewed"] and not candidate["assessment"]["excluded"]:
+                    self.store.enqueue(job_id, "review", candidate["id"], {"candidate_id": candidate["id"]})
             consecutive_search_errors = 0
             while True:
                 self.store.update(job_id, active_seconds=elapsed())
@@ -153,7 +169,7 @@ class Engine:
                 job = self.store.job(job_id)
                 stats = job["stats"]
                 # Finish extraction before spending another network request.
-                task = self.store.task(job_id, "analyze")
+                task = self.store.task(job_id, "review") or self.store.task(job_id, "analyze")
                 if not task and stats["pages"] < brief.budget.pages:
                     task = self.store.task(job_id, "fetch")
                 if (
@@ -173,6 +189,7 @@ class Engine:
                         job_id,
                         f"Модель планирует этап {job['rounds'] + 1}: языки, варианты имени, новые направления.",
                     )
+                    self.store.activity(job_id, "planning", str(job["rounds"] + 1))
                     detail = self.store.detail(job_id)
                     previous = [
                         q["payload"]["query"] for q in detail["queries"] if q["revision"] == job["revision"]
@@ -180,13 +197,13 @@ class Engine:
                     clues = [
                         {
                             "name": c["value"]["name"],
-                            "description": c["value"]["description"],
+                            "description": c["assessment"]["note"],
                             "review": c["status"],
                             "evidence": c["assessment"],
-                            "facts": c["value"]["facts"],
+                            "facts": c["assessment"]["checked_facts"],
                         }
                         for c in detail["candidates"]
-                        if not c["assessment"]["excluded"]
+                        if not c["assessment"]["excluded"] and c["status"] != "rejected"
                     ][-12:]
                     remaining = brief.budget.queries - stats["queries"]
                     prompt = (
@@ -212,7 +229,7 @@ class Engine:
                     added = 0
                     remaining = brief.budget.queries - stats["queries"]
                     for query in plan.queries[:remaining]:
-                        if query.language not in brief.languages:
+                        if not useful_query(query, brief):
                             continue
                         key = normalize(query.query).casefold()
                         added += self.store.enqueue(job_id, "search", key, query.model_dump())
@@ -225,6 +242,7 @@ class Engine:
 
                 if task["kind"] == "search":
                     query = Query.model_validate(task["payload"])
+                    self.store.activity(job_id, "searching", query.query)
                     self.store.event(job_id, f"Поиск [{query.language.upper()}]: {query.query}")
                     search_task_id = task["id"]
                     try:
@@ -263,6 +281,7 @@ class Engine:
 
                 elif task["kind"] == "fetch":
                     payload = task["payload"]
+                    self.store.activity(job_id, "reading", payload.get("title", ""), payload["url"])
                     self.store.event(job_id, "Чтение: " + payload["url"])
                     try:
                         page = await bounded(
@@ -309,11 +328,73 @@ class Engine:
                             )
                     self.store.enqueue(job_id, "analyze", source_id, {"source_id": source_id})
 
+                elif task["kind"] == "review":
+                    candidate_id = task["payload"]["candidate_id"]
+                    with self.store.connect() as c:
+                        row = c.execute(
+                            "SELECT * FROM candidates WHERE id=? AND job_id=?", (candidate_id, job_id)
+                        ).fetchone()
+                        if not row:
+                            self.store.finish_task(task["id"])
+                            task = None
+                            continue
+                        import json
+
+                        prior = c.execute(
+                            "SELECT value FROM candidate_audits WHERE candidate_id=? AND revision=?",
+                            (candidate_id, job["revision"]),
+                        ).fetchone()
+                        if prior and json.loads(prior["value"]).get("method") == AUDIT_METHOD:
+                            self.store.finish_task(task["id"])
+                            task = None
+                            continue
+                        value = json.loads(row["value"])
+                        page = dict(
+                            c.execute("SELECT * FROM sources WHERE id=?", (row["source_id"],)).fetchone()
+                        )
+                    excerpt = excerpt_for(page["body"], brief, settings.context_chars)
+                    self.store.activity(job_id, "verifying", value["name"], page["url"])
+                    audit = await bounded(model.complete(audit_prompt(value, brief, excerpt), CandidateAudit))
+                    validated = validate_audit(audit, value, brief, page["body"], excerpt)
+                    if validated["note"]:
+                        references = [value["facts"][i] for i in validated["note_facts"]]
+                        verdict = await bounded(
+                            model.complete(
+                                observation_prompt(validated["note"], references), ObservationReview
+                            )
+                        )
+                        if not observation_allowed(validated["note"], verdict):
+                            validated["note"] = ""
+                            validated["note_facts"] = []
+                            validated["note_withheld"] = True
+                    self.store.save_audit(candidate_id, job["revision"], validated, settings.model)
+                    # A re-run after cancellation cannot add a second copy of the same query.
+                    if row["status"] != "rejected" and validated["supported"] and not validated["conflicts"]:
+                        with self.store.connect() as c:
+                            scheduled = c.execute(
+                                "SELECT COUNT(*) FROM tasks WHERE job_id=? AND kind='search' AND state IN ('pending','running','done','failed')",
+                                (job_id,),
+                            ).fetchone()[0]
+                        for query in validated["next_queries"][: max(0, brief.budget.queries - scheduled)]:
+                            self.store.enqueue(job_id, "search", normalize(query["query"]).casefold(), query)
+                    if validated["note"]:
+                        self.store.event(
+                            job_id,
+                            validated["note"] + "\n" + page["url"] + f" · criteria v{job['revision']}",
+                            "model",
+                        )
+                    accepted = len(validated["accepted_facts"])
+                    self.store.event(
+                        job_id,
+                        f"Semantic review: {accepted} supported claims; {len(value['facts']) - accepted} withheld.",
+                    )
+
                 else:
                     source_id = task["payload"]["source_id"]
                     with self.store.connect() as c:
                         page = dict(c.execute("SELECT * FROM sources WHERE id=?", (source_id,)).fetchone())
-                    excerpt = page["body"][: settings.context_chars]
+                    excerpt = excerpt_for(page["body"], brief, settings.context_chars)
+                    self.store.activity(job_id, "extracting", page["title"], page["url"])
                     self.store.event(job_id, "Локальная модель проверяет: " + page["title"])
                     extraction = await bounded(
                         model.complete(
@@ -337,16 +418,31 @@ class Engine:
                     with self.store.connect() as c:
                         # One task per source: cancellation before this synchronous transaction is safe to retry.
                         for candidate in extraction.candidates:
-                            facts = grounded_facts(candidate.facts, excerpt)
+                            facts = [
+                                f
+                                for f in grounded_facts(candidate.facts, excerpt)
+                                if normalize(f["quote"]) in normalize(page["body"])
+                            ]
                             discarded += len(candidate.facts) - len(facts)
                             if not facts:
                                 continue
-                            value = candidate.model_dump() | {"facts": facts}
+                            value = candidate.model_dump() | {
+                                "facts": facts,
+                                "description": "",
+                                "matches": [],
+                                "contradictions": [],
+                            }
                             c.execute(
                                 "INSERT INTO candidates(id,job_id,source_id,value) VALUES(?,?,?,?)",
                                 (uid(), job_id, source_id, dump(value)),
                             )
                             saved += 1
+                    with self.store.connect() as c:
+                        ids = c.execute(
+                            "SELECT id FROM candidates WHERE job_id=? AND source_id=?", (job_id, source_id)
+                        ).fetchall()
+                    for row in ids:
+                        self.store.enqueue(job_id, "review", row["id"], {"candidate_id": row["id"]})
                     self.store.event(
                         job_id,
                         f"Возможных совпадений: {saved}. Отброшено цитат, которых нет в тексте: {discarded}.",

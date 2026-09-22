@@ -29,8 +29,8 @@ export default function Welcome({
       FileCheck2,
       t("Follow the evidence", "Проверяйте источники"),
       t(
-        "Inspect quotations and source links behind saved claims. Possible matches stay separate for your review.",
-        "Изучайте цитаты и ссылки за сохранёнными утверждениями. Возможные совпадения остаются отдельными для вашей проверки.",
+        "Each claim needs a source quotation and a separate local AI review of its meaning and subject. Inspect the links, then confirm or reject the candidate yourself.",
+        "Для каждого утверждения нужны цитата и отдельная проверка её смысла и принадлежности локальным ИИ. Изучите ссылки, затем подтвердите или отклоните кандидата сами.",
       ),
     ],
     [
@@ -184,8 +184,8 @@ export default function Welcome({
           </summary>
           <p>
             {t(
-              "No. The evidence meter describes support from quoted clues, not a probability of identity. A quotation proves that text appeared in a source, not that the source is true. Review each candidate and contradictions yourself.",
-              "Нет. Шкала показывает поддержку ориентиров цитатами, а не вероятность установления личности. Цитата подтверждает наличие текста в источнике, но не его истинность. Проверяйте каждого кандидата и противоречия самостоятельно.",
+              "No. The evidence meter describes support for your known clues after quote validation and a separate semantic review by the local model. The model can still misread a source. The report separates checked findings, unresolved questions and unavailable pages; it does not give a calibrated probability of identity. Confirmed cards can form a sourced overview of public work and education.",
+              "Нет. Шкала показывает поддержку ваших ориентиров после проверки цитат и отдельной смысловой проверки локальной моделью. Модель всё ещё может неверно прочитать источник. В отчёте разделены проверенные сведения, открытые вопросы и недоступные страницы; статистической вероятности личности он не даёт. Подтверждённые вами карточки образуют обзор публичной деятельности и образования по источникам.",
             )}
           </p>
         </details>
