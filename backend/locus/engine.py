@@ -12,10 +12,10 @@ from .discovery import DISCOVERY_TAG, portfolio, verification_queries
 from .identity import discovery_priority, resolution
 from .models import Brief, Extraction, Plan, Query
 from .names import variants
+from .navigation import planned_trails
 from .places import prompt_context
 from .providers.local_model import LocalModel
 from .providers.search import Search
-from .trails import relevant_links
 from .verification import (
     AUDIT_METHOD,
     CandidateAudit,
@@ -65,6 +65,40 @@ class Engine:
         self.current: asyncio.Task | None = None
         self.current_id: str | None = None
         self.closing = False
+
+    def expand_source(self, job_id, source_id, brief, detail=None):
+        detail = detail or self.store.detail(job_id)
+        source = next((s for s in detail["sources"] if s["id"] == source_id), None)
+        if not source:
+            return
+        urls = [source["url"], *source.get("url_aliases", [])]
+        with self.store.connect() as c:
+            rows = c.execute(
+                "SELECT payload FROM tasks WHERE job_id=? AND kind='fetch' AND key IN ("
+                + ",".join("?" for _ in urls)
+                + ")",
+                (job_id, *urls),
+            ).fetchall()
+        depth = min((json.loads(r[0]).get("depth", 0) for r in rows), default=0)
+        if depth >= 2:
+            return
+        added = 0
+        for link in planned_trails(detail, source, brief):
+            added += self.store.enqueue(
+                job_id,
+                "fetch",
+                link["url"],
+                {
+                    "url": link["url"],
+                    "title": link["context"][:160],
+                    "priority": 8,
+                    "depth": depth + 1,
+                    "from_source": source_id,
+                    "trail_kind": link["kind"],
+                },
+            )
+        if added:
+            self.store.event(job_id, f"Ссылок добавлено после проверки личности: {added}.")
 
     def start(self):
         self.store.recover()
@@ -171,6 +205,10 @@ class Engine:
                 if not candidate["assessment"]["model_reviewed"] and not candidate["assessment"]["excluded"]:
                     self.store.enqueue(job_id, "review", candidate["id"], {"candidate_id": candidate["id"]})
             prior_detail = self.store.detail(job_id)
+            # Reconsider deferred links after a criteria or human linking change,
+            # including interruption after an audit was saved. Never repeat done URLs.
+            for source in prior_detail["sources"]:
+                self.expand_source(job_id, source["id"], brief, prior_detail)
             prior_queries = prior_detail["queries"]
             if prior_queries and not any(
                 q["payload"].get("reason", "").startswith(DISCOVERY_TAG) for q in prior_queries
@@ -342,8 +380,32 @@ class Engine:
                     )
 
                 elif task["kind"] == "fetch":
-                    fetch_streak += 1
                     payload = task["payload"]
+                    if payload.get("from_source") and payload["url"] not in {
+                        canonical_url(u) for u in brief.seed_urls
+                    }:
+                        detail = self.store.detail(job_id)
+                        origin = next(
+                            (s for s in detail["sources"] if s["id"] == payload["from_source"]), None
+                        )
+                        allowed = (
+                            {link["url"] for link in planned_trails(detail, origin, brief)}
+                            if origin
+                            else set()
+                        )
+                        if payload["url"] not in allowed:
+                            self.store.finish_task(
+                                task["id"],
+                                "superseded",
+                                "Deferred: identity criteria not established for source expansion",
+                            )
+                            self.store.event(
+                                job_id,
+                                "Переход от неподтверждённой записи отложен: сначала проверка недостающих связей.",
+                            )
+                            task = None
+                            continue
+                    fetch_streak += 1
                     self.store.activity(job_id, "reading", payload.get("title", ""), payload["url"])
                     self.store.event(job_id, "Чтение: " + payload["url"])
                     try:
@@ -410,34 +472,7 @@ class Engine:
                         )
                         aliases = list(dict.fromkeys([*aliases, payload["url"]]))[:30]
                         c.execute("UPDATE sources SET url_aliases=? WHERE id=?", (dump(aliases), source_id))
-                    # Follow observed, name-scoped links; never ask the model to invent URLs.
-                    depth = payload.get("depth", 0)
-                    if depth < 2:
-                        trails = relevant_links(
-                            page.get("links", []),
-                            [v["name"] for v in variants(brief)],
-                            brief.include_domains,
-                            brief.exclude_domains,
-                        )
-                        for link in trails:
-                            self.store.enqueue(
-                                job_id,
-                                "fetch",
-                                link["url"],
-                                {
-                                    "url": link["url"],
-                                    "title": link["context"][:160],
-                                    "priority": 8,
-                                    "depth": depth + 1,
-                                    "from_source": source_id,
-                                    "trail_kind": link["kind"],
-                                },
-                            )
-                        if trails:
-                            self.store.event(
-                                job_id,
-                                f"Observed source trails queued: {len(trails)}. Links are leads, not identity proof.",
-                            )
+                    # Store links now; an identity decision controls navigation after analysis.
                     self.store.enqueue(job_id, "analyze", source_id, {"source_id": source_id})
 
                 elif task["kind"] == "review":
@@ -480,6 +515,7 @@ class Engine:
                     )
                     # A re-run after cancellation cannot add a second copy of the same query.
                     identity_state = resolution(validated["identity_checks"], bool(validated["name_quote"]))
+                    self.expand_source(job_id, row["source_id"], brief)
                     if identity_state == "unresolved":
                         # After this page's reviews, test missing relations before
                         # spending another two reads on a generic namesake backlog.
@@ -598,9 +634,11 @@ class Engine:
                         ).fetchall()
                     for row in ids:
                         self.store.enqueue(job_id, "review", row["id"], {"candidate_id": row["id"]})
+                    if not ids:
+                        self.expand_source(job_id, source_id, brief)
                     self.store.event(
                         job_id,
-                        f"Возможных совпадений: {saved}. Отброшено цитат, которых нет в тексте: {discarded}.",
+                        f"Непроверенных зацепок: {saved}. Отброшено цитат, которых нет в тексте: {discarded}.",
                     )
                 self.store.finish_task(task["id"])
                 task = None

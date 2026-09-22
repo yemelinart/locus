@@ -1,31 +1,13 @@
 import type { Candidate } from "../types";
 import { t } from "../i18n";
+import { identityPresentation } from "../identityPresentation";
 export default function EvidenceMeter({
   assessment: a,
 }: {
   assessment?: Candidate["assessment"];
 }) {
   if (!a) return null;
-  const labels: Record<string, string> = {
-    insufficient: t("Insufficient evidence", "Недостаточно свидетельств"),
-    limited: t("Limited support", "Слабая обоснованность"),
-    supported: t("Supporting clues", "Есть подтверждающие ориентиры"),
-    strong: t(
-      "Multiple supporting clues",
-      "Несколько подтверждающих ориентиров",
-    ),
-    conflicting: t("Needs conflict review", "Нужно проверить противоречия"),
-    excluded: t("Archived by current filters", "В архиве по текущим фильтрам"),
-  };
-  const strength =
-    {
-      insufficient: 0,
-      limited: 1,
-      supported: 2,
-      strong: 3,
-      conflicting: 0,
-      excluded: 0,
-    }[a.level] ?? 0;
+  const { label, strength } = identityPresentation(a);
   return (
     <>
       {!!a.identity_checks?.length && (
@@ -66,7 +48,7 @@ export default function EvidenceMeter({
             ))}
           </span>
           <span>
-            <strong>{labels[a.level]}</strong>
+            <strong>{label}</strong>
             <small>{t("Why this assessment?", "Почему такая оценка?")}</small>
           </span>
         </summary>
@@ -126,8 +108,8 @@ export default function EvidenceMeter({
           )}
           <p>
             {t(
-              "Only reviewed claims and source-linked clues can raise support above limited. Missing or outdated review keeps claims out of the overview. Two clue types on one page are not two independent sources.",
-              "Оценку выше слабой дают только проверенные утверждения и ориентиры с цитатами. При отсутствии или устаревании проверки утверждения не входят в обзор. Два типа ориентиров на одной странице — не два независимых источника.",
+              "The name alone never fills the match indicator. All required identity criteria must be supported before it becomes positive. Two clue types on one page are not two independent sources.",
+              "Одно имя не заполняет шкалу совпадения. Для положительной оценки нужны подтверждения всех обязательных условий. Два типа ориентиров на одной странице — не два независимых источника.",
             )}
           </p>
         </div>

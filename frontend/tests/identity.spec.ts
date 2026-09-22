@@ -109,6 +109,12 @@ test("required criteria separate matches, unknown links and conflicts", async ({
   await expect(page.locator(".candidate-card")).toContainText(
     "Matching profile",
   );
+  await expect(page.locator(".candidate-card .review-label")).toHaveText(
+    "Required criteria supported",
+  );
+  await expect(
+    page.locator(".candidate-card .evidence-bars .filled"),
+  ).toHaveCount(2);
   await expect(page.locator(".identity-criteria")).toContainText(
     "Supported by source",
   );
@@ -122,6 +128,23 @@ test("required criteria separate matches, unknown links and conflicts", async ({
   await expect(page.locator(".candidate-card")).toContainText(
     "Unknown connection",
   );
+  await expect(page.locator(".candidate-card .review-label")).toHaveText(
+    "Name only · identity unconfirmed",
+  );
+  await expect(
+    page.locator(".candidate-card .evidence-bars .filled"),
+  ).toHaveCount(0);
+  await expect(page.locator(".candidate-card")).not.toContainText(
+    "Possible match",
+  );
+  await expect(page.locator(".identity-unconfirmed-note")).toContainText(
+    "not an identified match",
+  );
+  await page.getByRole("button", { name: "Change interface language" }).click();
+  await expect(page.locator(".candidate-card .review-label")).toHaveText(
+    "Только имя · личность не установлена",
+  );
+  await page.getByRole("button", { name: "Изменить язык приложения" }).click();
   await expect(page.locator(".identity-criteria")).toContainText(
     "Connection unverified",
   );

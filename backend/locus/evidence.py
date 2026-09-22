@@ -25,6 +25,25 @@ CONCLUSIONS = {
 }
 
 
+def assessment_label(assessment, lang="en"):
+    index = lang == "ru"
+    if assessment["excluded"]:
+        return LABELS["excluded"][index]
+    if not assessment["model_reviewed"]:
+        return ("Identity check pending", "Совпадение ещё не проверено")[index]
+    if assessment["identity_status"] == "conflicting":
+        return ("Conflicts with criteria", "Противоречит условиям")[index]
+    if assessment["identity_status"] == "eligible":
+        return ("Required criteria supported", "Обязательные условия подтверждены")[index]
+    if assessment["identity_status"] in {"unresolved", "no_constraints"}:
+        if not assessment["name_compatible"]:
+            return ("Person attribution unconfirmed", "Принадлежность сведений не установлена")[index]
+        if any(c["relation"] == "supports" for c in assessment["identity_checks"]):
+            return ("Required links unconfirmed", "Обязательные связи не подтверждены")[index]
+        return ("Name only · identity unconfirmed", "Только имя · личность не установлена")[index]
+    return LABELS[assessment["level"]][index]
+
+
 def contains(text, phrase):
     def norm(value):
         return " ".join(unicodedata.normalize("NFKC", value).casefold().split())

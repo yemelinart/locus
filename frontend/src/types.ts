@@ -64,6 +64,7 @@ export type Source = {
 export type Fact = { category: string; statement: string; quote: string };
 export type Candidate = {
   assessment?: {
+    name_compatible?: boolean;
     identity_status?:
       "eligible" | "unresolved" | "conflicting" | "no_constraints";
     identity_checks?: {

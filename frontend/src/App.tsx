@@ -286,7 +286,7 @@ export default function App() {
             <ArrowUpRight size={15} />
           </button>
           <div className="sidebar-meta">
-            <span>{t("v0.6.2 · early release", "v0.6.2 · ранняя версия")}</span>
+            <span>{t("v0.6.3 · early release", "v0.6.3 · ранняя версия")}</span>
             <span>{t("Открытый код")}</span>
           </div>
         </div>

@@ -148,3 +148,12 @@
 - The public smoke exposed missing ordinary biography navigation on a named personal page. A named-heading/same-host profile-link rule was subsequently added and regression-tested. A full real-model rerun of that final reader change was prevented by the harness because the user had started a research job. The earlier live smoke is not a test of that later rule.
 - Logs and snapshots are in ignored `.qa/v06/`, excluded from source releases. Two existing test-client deprecation warnings remain.
 - Installation verified: an active user research was checkpointed and paused, SQLite was backed up, schema 4 migrated to 5 with its own backup, and `/api/health` returned 0.6.0. Project ID, criteria and result counters were unchanged before explicit resumption of the previously active job. No test records were imported into the user's database.
+
+
+## 0.6.3 verification — 2026-09-22
+
+- 144 backend tests pass. New cases cover identity-aware labels in exports, unresolved-source navigation, explicit human link groups, audit-before-expansion engine replay, deferral and revival of a legacy namesake queue, and depth preservation through redirect aliases. Replay model/search responses are scripted; no real-model accuracy claim.
+- All 18 browser scenarios pass: 17 in the full run and the remaining legacy-evidence scenario after correcting its outdated label expectation and narrowing an ambiguous test selector. Coverage includes pending/name-only zero bars, matching/conflicting criteria, bilingual labels, collapsed link proposals, accessibility and mobile layout.
+- TypeScript/Vite production build, Ruff and backend formatting checks pass. No new dependencies or database schema change. Two existing test-client deprecation warnings remain.
+- Installed version and package metadata both report 0.6.3. SQLite backup integrity is OK. API comparison verifies project IDs, criteria, revision, counters, candidate IDs, manual decisions and paused state are preserved. The open browser was refreshed and shows the new version, no supported match, and unconfirmed records outside matching results.
+- The existing paused search has a model JSON-format error. No inference was restarted during installation. This update does not claim to fix malformed model responses, existing inaccessible sources, broad discovery recall or the correctness of every model judgment.

@@ -321,6 +321,10 @@ def blocks(detail, lang="en"):
             }[candidate["status"]],
         )
         assessment = candidate.get("assessment")
+        if assessment:
+            from .evidence import assessment_label
+
+            line("Identity assessment", "Оценка личности", assessment_label(assessment, lang))
         if assessment and assessment.get("identity_checks"):
             for criterion in assessment["identity_checks"]:
                 label = {
@@ -342,10 +346,6 @@ def blocks(detail, lang="en"):
                 add("link", source["url"])
                 continue
         if assessment:
-            from .evidence import LABELS
-
-            label = LABELS[assessment["level"]][lang == "ru"]
-            line("Evidence support", "Обоснованность совпадения", label)
             add(
                 "note",
                 t(

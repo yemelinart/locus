@@ -8,6 +8,7 @@ import AnalysisPanel from "./AnalysisPanel";
 import ReportDialog from "./ReportDialog";
 import { useState } from "react";
 import useResearchClock, { clockTime } from "../useResearchClock";
+import { identityPresentation } from "../identityPresentation";
 import {
   ArrowDownToLine,
   ArrowUpRight,
@@ -43,6 +44,7 @@ function CandidateCard({
 }) {
   const v = candidate.value;
   const checked = candidate.assessment?.checked_facts || [];
+  const identity = identityPresentation(candidate.assessment);
   const withheld = v.facts.filter(
     (_, i) => !checked.some((f) => f.index === i),
   );
@@ -68,13 +70,31 @@ function CandidateCard({
         <span className={`review-label ${candidate.status}`}>
           {candidate.assessment?.review_outdated
             ? t("Review needs updating", "Нужно обновить оценку")
-            : candidate.status === "confirmed"
-              ? t("Вы подтвердили")
-              : candidate.status === "rejected"
-                ? t("Отклонён")
-                : t("Возможное совпадение")}
+            : candidate.status === "rejected"
+              ? t("Отклонён")
+              : candidate.status === "confirmed" && identity.accepted
+                ? t("Вы подтвердили")
+                : identity.label}
         </span>
       </div>
+      {!identity.accepted && (
+        <p className="identity-unconfirmed-note">
+          {t(
+            "This is a research lead, not an identified match. Details below belong to the person described by this source; they have not been attributed to the person you are looking for.",
+            "Это зацепка для проверки, а не найденный человек. Сведения ниже относятся к человеку из источника; их принадлежность тому, кого вы ищете, не установлена.",
+          )}
+          {candidate.status === "confirmed" &&
+            !candidate.assessment?.review_outdated && (
+              <>
+                {" "}
+                {t(
+                  "You marked this record as the person; source-based criteria remain separate.",
+                  "Вы отметили эту запись как нужного человека; подтверждение условий источниками оценивается отдельно.",
+                )}
+              </>
+            )}
+        </p>
+      )}
       <EvidenceMeter assessment={candidate.assessment} />
       {candidate.assessment?.review_outdated && (
         <p className="review-stale">
@@ -115,8 +135,12 @@ function CandidateCard({
       {checked.length > 0 && (
         <h4 className="profile-overview-title">
           {t(
-            "Public work & education · sourced overview",
-            "Публичная деятельность и образование · по источнику",
+            identity.accepted
+              ? "Public work & education · sourced overview"
+              : "What this source says about the named person",
+            identity.accepted
+              ? "Публичная деятельность и образование · по источнику"
+              : "Что источник сообщает о человеке с этим именем",
           )}
         </h4>
       )}
@@ -347,7 +371,7 @@ export default function ResearchView({
             icon: Globe2,
           },
           {
-            label: t("Возможных совпадений"),
+            label: t("Records to check", "Записей для проверки"),
             value: job.stats.candidates,
             icon: Users,
           },
@@ -458,7 +482,12 @@ export default function ResearchView({
           {tab === "candidates" && (
             <>
               <div className="result-tools">
-                <span>{t("Каждое совпадение требует вашей проверки")}</span>
+                <span>
+                  {t(
+                    "Every record needs an identity check",
+                    "Каждая запись требует проверки личности",
+                  )}
+                </span>
                 <select
                   aria-label={t("Фильтр совпадений")}
                   value={filter}

@@ -420,9 +420,11 @@ test("evidence support explains quotes, missing clues and archived candidates", 
     .getByRole("button", { name: /Fictional evidence test/ })
     .first()
     .click();
-  await expect(
-    page.getByText("Supporting clues", { exact: true }),
-  ).toBeVisible();
+  // A legacy quote-only assessment must not appear as a positive identity check.
+  await expect(page.locator(".evidence-meter summary strong")).toHaveText(
+    "Identity check pending",
+  );
+  await expect(page.locator(".evidence-bars .filled")).toHaveCount(0);
   await expect(
     page.getByRole("heading", { name: "Archived Alex", exact: true }),
   ).not.toBeVisible();

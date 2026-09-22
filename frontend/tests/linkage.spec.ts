@@ -135,6 +135,10 @@ test("review source links, combine criteria and undo", async ({
     .getByRole("button", { name: /^Fictional linked evidence/ })
     .click();
   const panel = page.getByRole("region", { name: "Evidence across sources" });
+  await panel
+    .locator("summary")
+    .filter({ hasText: "Review source links" })
+    .click();
   await expect(
     panel.getByRole("link", { name: "School profile" }),
   ).toBeVisible();

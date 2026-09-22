@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.6.3 — 2026-09-22
+
+- Removed the unconditional “Possible match” card label and positive name-only evidence bar. Unreviewed records, unconfirmed identity, conflicting criteria and supported criteria now have separate labels in the interface and exports.
+- Applied the model's validated identity decision before expanding observed source links. Unconfirmed records get at most two biography/profile leads, not automatic enumeration of a namesake's works. Eligible records retain bounded public-source expansion.
+- Existing unconfirmed expansion tasks are deferred without reading the page; they remain recoverable if later criteria or confirmed source links establish the connection. Explicit seed URLs, URL deduplication, depth limits and shared budgets remain in force.
+- Collapsed proposed source links by default. Descriptions of unconfirmed people are explicitly separated from facts about the research target.
+- Schema and audit method unchanged. These are presentation and navigation fixes, not evidence of higher real-world recall or competitor superiority.
+
 ## 0.6.2 — 2026-09-22
 
 - Fixed Resume silently requeueing an exhausted search. Completed/blocked passes now open an explicit next-pass allowance dialog; the API rejects an exhausted direct start.

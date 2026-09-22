@@ -113,7 +113,7 @@ export default function SourceLinks({
           )}
         </article>
       ))}
-      <details open={!links.groups.length}>
+      <details>
         <summary>
           {t("Review source links", "Проверить связи источников")} (
           {links.proposals.length})

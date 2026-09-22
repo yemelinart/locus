@@ -63,6 +63,18 @@ const reverse = Object.fromEntries(
 );
 const patterns: [RegExp, string][] = [
   [
+    /^Ссылок добавлено после проверки личности: (\d+)\.$/,
+    "Observed links queued after identity screening: $1.",
+  ],
+  [
+    /^Переход от неподтверждённой записи отложен: сначала проверка недостающих связей\.$/,
+    "Unconfirmed source expansion deferred; missing identity criteria take priority.",
+  ],
+  [
+    /^Непроверенных зацепок: (\d+)\. Отброшено цитат, которых нет в тексте: (\d+)\.$/,
+    "Unverified leads: $1. Quotes absent from the text discarded: $2.",
+  ],
+  [
     /^Критерии сохранены: версия (\d+). Прежние находки сохранены, обоснованность пересчитана.$/,
     "Criteria saved: revision $1. Earlier findings retained; evidence reassessed.",
   ],

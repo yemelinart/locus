@@ -8,7 +8,13 @@
 
 Locus turns a name and a few known details into a research workspace. Your local model plans multilingual queries and extracts source-backed observations from accessible public pages. You review possible matches, add clues and continue the same project as your understanding improves.
 
-**0.6.2 · Early release · MIT-licensed code · Local web app**
+**0.6.3 · Early release · MIT-licensed code · Local web app**
+
+## New in 0.6.3
+
+A name match alone no longer receives a positive indicator or “Possible match” label. The model's validated identity assessment also controls which observed links are followed: unresolved records allow limited biography/profile checks before broader public-work expansion.
+
+[Where AI is used and how identity decisions control research](docs/V063-IDENTITY-DECISIONS.md). Retrieval accuracy still needs broader measurement.
 
 ## New in 0.6.2
 
