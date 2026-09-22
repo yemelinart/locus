@@ -4,7 +4,7 @@
 
 **Research public profiles and mentions with local AI. Keep the sources, refine the search, own the project.**
 
-[Start here](START-HERE.md) · [Русский](README.ru.md) · [Sharing & private GitHub](docs/SHARING.md) · [Changelog](CHANGELOG.md)
+[Presentation website](https://yemelinart.github.io/locus/) · [Start here](START-HERE.md) · [Русский](README.ru.md) · [Sharing](docs/SHARING.md) · [Changelog](CHANGELOG.md)
 
 Locus turns a name and a few known details into a research workspace. Your local model plans multilingual queries and extracts source-backed observations from accessible public pages. You review possible matches, add clues and continue the same project as your understanding improves.
 

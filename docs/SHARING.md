@@ -1,16 +1,16 @@
-# Private sharing / Передача друзьям
+# Sharing / Передача друзьям
 
-Репозиторий проекта: [yemelinart/locus](https://github.com/yemelinart/locus) — Private. [Выпуски](https://github.com/yemelinart/locus/releases).
+Репозиторий проекта: [yemelinart/locus](https://github.com/yemelinart/locus) — Public. [Выпуски](https://github.com/yemelinart/locus/releases).
 
 ## What to share
 
-Use a clean source ZIP or a private GitHub repository. Do not upload the working directory wholesale. `data/` contains research, settings and database backups; `.qa/` contains local checks. `.venv/`, `node_modules/`, credentials and model weights must not be included.
+Locus is public: share https://github.com/yemelinart/locus or the presentation at https://yemelinart.github.io/locus/. Anyone can download the source without an invitation. Use a clean source ZIP when sharing files directly. Do not upload the working directory wholesale. `data/` contains research, settings and database backups; `.qa/` contains local checks. `.venv/`, `node_modules/`, credentials and model weights must not be included.
 
 A source ZIP from a reviewed Git commit can be produced with `git archive --format=zip --prefix=Locus/ HEAD -o /path/outside/repository/Locus-source.zip`. It includes tracked files only. Review the tracked file list and history before the first push. The recipient installs dependencies and a model separately, following [START-HERE](../START-HERE.md).
 
 The app does not run on GitHub Pages: it requires a local Python service and a local model. Each recipient runs their own installation. A research ZIP exported from Locus is an offline results archive, not an application installer.
 
-## Приватный GitHub
+## Если позже понадобится приватный GitHub
 
 1. В своём аккаунте создайте репозиторий `locus` с видимостью **Private**. Не переключайте его в Public для удобства скачивания.
 2. Загрузите проверенные исходники. README станет первой страницей проекта.

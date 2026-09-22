@@ -1,5 +1,7 @@
 # Locus
 
+[Сайт-презентация](https://yemelinart.github.io/locus/) · [Скачать выпуск](https://github.com/yemelinart/locus/releases)
+
 [English](README.md) · [Начать здесь](START-HERE.ru.md) · [Передача друзьям](docs/SHARING.md)
 
 **Локальный исследователь публичных профилей и упоминаний. Бесплатный код, бесплатный поиск, только локальный ИИ.**
