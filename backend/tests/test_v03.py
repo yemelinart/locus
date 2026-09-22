@@ -101,6 +101,7 @@ def test_revision_cancels_old_queue_and_adds_budget_to_work_done(tmp_path):
     store.finish_task(store.task(job, "search")["id"])
     store.enqueue(job, "search", "pending", {"query": "Alex Rowan pending"})
     store.enqueue(job, "fetch", "https://example.net/a", {"url": "https://example.net/a", "title": "New"})
+    brief.context = "An additional public project clue"
     detail = store.continue_research(job, brief, Budget(minutes=10, queries=2, pages=3, rounds=1))
     assert detail["brief"]["budget"] == {"minutes": 12, "queries": 3, "pages": 3, "rounds": 4}
     assert [q["state"] for q in detail["queries"]] == ["done", "superseded"]
@@ -122,6 +123,7 @@ def test_api_continuation_review_zip_and_deletion(tmp_path):
             ).status_code
             == 200
         )
+        brief.context = "An additional public project clue"
         body = {"brief": brief.model_dump(), "additional_budget": Budget().model_dump(), "start": False}
         r = client.post(f"/api/jobs/{job}/continue", headers=HEADERS, json=body)
         assert r.status_code == 200 and r.json()["candidates"][0]["assessment"]["review_outdated"]

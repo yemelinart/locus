@@ -1,6 +1,7 @@
 import json
 import math
 import sqlite3
+import time
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
@@ -23,6 +24,7 @@ def dump(value) -> str:
 
 class Store:
     def __init__(self, path: Path):
+        self._clocks: dict[str, tuple[float, float]] = {}
         path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
         self.path = path
         with self.connect() as c:
@@ -153,6 +155,9 @@ class Store:
             if not row:
                 raise KeyError(job_id)
             result = dict(row)
+            if result["status"] == "running" and job_id in self._clocks:
+                base, began = self._clocks[job_id]
+                result["active_seconds"] = base + max(0, time.monotonic() - began)
             result["activity"] = json.loads(result["activity"])
             result["brief"] = Brief.model_validate_json(result["brief"]).model_dump()
             result["settings_snapshot"] = json.loads(result["settings_snapshot"])
@@ -198,6 +203,14 @@ class Store:
                 f"UPDATE jobs SET {','.join(k + '=?' for k in values)} WHERE id=?", (*values.values(), job_id)
             )
 
+    def begin_clock(self, job_id, base, began):
+        # The live response uses the worker's monotonic clock, never updated_at.
+        # Durable checkpoints still bound time lost after an abrupt process exit.
+        self._clocks[job_id] = (base, began)
+
+    def end_clock(self, job_id):
+        self._clocks.pop(job_id, None)
+
     def activity(self, job_id, phase, target="", url=""):
         self.update(job_id, activity=dump({"phase": phase, "target": target[:500], "url": url, "at": now()}))
 
@@ -241,6 +254,9 @@ class Store:
         previous = self.detail(job_id)
         if previous["status"] in {"running", "queued"}:
             raise ValueError("Pause research before changing criteria")
+        criteria_changed = brief.model_dump(exclude={"budget"}) != Brief.model_validate(
+            previous["brief"]
+        ).model_dump(exclude={"budget"})
         if additional_budget:
             brief.budget = Budget(
                 minutes=math.ceil(previous["active_seconds"] / 60) + additional_budget.minutes,
@@ -248,6 +264,20 @@ class Store:
                 pages=previous["stats"]["pages"] + additional_budget.pages,
                 rounds=previous["rounds"] + additional_budget.rounds,
             )
+        if not criteria_changed:
+            # A further pass is not a new identity hypothesis. Keep audits, manual
+            # decisions, pending work and the query/URL deduplication namespace.
+            self.update(
+                job_id,
+                brief=brief.model_dump_json(),
+                status="paused",
+                reason="Search allowance updated. Ready to continue the saved queue.",
+            )
+            self.event(
+                job_id,
+                "Search extended with the same criteria. Findings, reviews and pending work preserved.",
+            )
+            return self.detail(job_id)
         revision = previous["revision"] + 1
         stamp = now()
         with self.connect() as c:
@@ -317,6 +347,8 @@ class Store:
             order = (
                 "COALESCE(json_extract(payload,'$.priority'),0) DESC, rowid" if kind == "fetch" else "rowid"
             )
+            if kind == "search":
+                order = "CASE WHEN json_extract(payload,'$.reason') LIKE 'Investigate missing criterion:%' THEN 0 ELSE 1 END, rowid"
             if kind == "fetch":
                 from urllib.parse import urlsplit
 
@@ -349,6 +381,12 @@ class Store:
     def detail(self, job_id: str) -> dict:
         result = self.job(job_id)
         with self.connect() as c:
+            result["queue"] = dict.fromkeys(("search", "fetch", "analyze", "review"), 0)
+            for row in c.execute(
+                "SELECT kind,COUNT(*) AS n FROM tasks WHERE job_id=? AND state='pending' GROUP BY kind",
+                (job_id,),
+            ):
+                result["queue"][row["kind"]] = row["n"]
             result["sources"] = [
                 dict(r)
                 for r in c.execute(
@@ -410,6 +448,9 @@ class Store:
             )
         result["linkage"] = build_linkage(result, decisions)
         result["conclusion"] = conclusion(result)
+        from .progress import continuation_state
+
+        result["continuation"] = continuation_state(result)
         return result
 
     def review_link(self, job_id, left_id, right_id, status):

@@ -8,7 +8,13 @@
 
 Locus turns a name and a few known details into a research workspace. Your local model plans multilingual queries and extracts source-backed observations from accessible public pages. You review possible matches, add clues and continue the same project as your understanding improves.
 
-**0.6.1 · Early release · MIT-licensed code · Local web app**
+**0.6.2 · Early release · MIT-licensed code · Local web app**
+
+## New in 0.6.2
+
+Resume now explains exhausted limits and offers a fresh allowance for the next pass. Continuing unchanged criteria keeps the queue, reviews and visited-page history. The live timer ticks in seconds; the process panel separates local AI work from web requests and shows the latest identity decision, including missing links. Missing-criterion queries get priority over generic discovery.
+
+[Continuation, timing and search-quality roadmap](docs/V062-CONTINUATION.md). These changes improve run control; broad people-finding accuracy remains unproven.
 
 ## New in 0.6.1
 

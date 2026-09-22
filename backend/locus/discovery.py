@@ -83,8 +83,9 @@ def portfolio(brief, planned, previous, limit, first_round=False):
     if limit <= 0:
         return []
     seen = {normalized(x) for x in previous}
-    seeds = seed_queries(brief) if first_round else []
-    # Deterministic seeds survive an empty or poor model plan; later rounds remain adaptive.
+    seeds = seed_queries(brief)
+    # Keep unused spelling/clue hypotheses available in later passes too. Completed
+    # queries are removed below; a resumed run must never recycle its first batch.
     choices = []
     for i in range(max(len(seeds), len(planned))):
         if i < len(seeds):
@@ -121,6 +122,14 @@ def verification_queries(brief, candidate, page_url, checks):
         if check["field"] == "birth_year":
             term = "born biography"
         elif check["field"] == "city":
+            if host:
+                queries.append(
+                    Query(
+                        query=f"{name} {quoted(brief.city)} site:{host}",
+                        language=brief.languages[0],
+                        reason="Investigate missing criterion: city on the observed source",
+                    )
+                )
             for place in search_spellings(brief.city, brief.country)[:3]:
                 queries.append(
                     Query(

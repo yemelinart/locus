@@ -181,9 +181,13 @@ def create_app(data_dir: Path | None = None, run_worker: bool = True) -> FastAPI
 
     @app.post("/api/jobs/{job_id}/start")
     async def start(job_id: str):
-        job = store.job(job_id)
+        job = store.detail(job_id)
         if job["status"] in {"running", "queued"}:
             return job
+        if job["continuation"]["blocked_by"]:
+            raise HTTPException(
+                409, "Search allowance exhausted. Use Continue search to add time and work before resuming."
+            )
         if not store.settings().model:
             raise HTTPException(409, "Сначала выберите локальную модель в настройках")
         store.update(job_id, status="queued", reason="Ожидает свободную локальную модель")

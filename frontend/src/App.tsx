@@ -3,7 +3,7 @@ import { Trash2, ChartNoAxesCombined, Download } from "lucide-react";
 import Welcome from "./components/Welcome";
 import { BookOpen } from "lucide-react";
 import ReportDialog from "./components/ReportDialog";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ArrowUpRight,
   Cpu,
@@ -25,6 +25,7 @@ import NewResearch from "./components/NewResearch";
 import SettingsPanel from "./components/SettingsPanel";
 import ResearchView from "./components/ResearchView";
 export default function App() {
+  const mutationEpoch = useRef(0);
   const prefs = usePreferences();
   const [selectedTab, setSelectedTab] = useState("candidates");
   const [deleteTarget, setDeleteTarget] = useState<Job | null>(null);
@@ -92,28 +93,33 @@ export default function App() {
       return;
     }
     let alive = true;
+    let timer: number;
     const load = async () => {
+      const epoch = mutationEpoch.current;
       try {
         const [detail, list] = await Promise.all([
           api<Detail>(`/jobs/${selected}`),
           api<Job[]>("/jobs"),
         ]);
-        if (alive) {
+        if (alive && epoch === mutationEpoch.current) {
           setJob(detail);
           setJobs(list);
         }
       } catch (e) {
-        if (alive) setError((e as Error).message);
+        if (alive && epoch === mutationEpoch.current)
+          setError((e as Error).message);
+      } finally {
+        if (alive) timer = window.setTimeout(load, 2500);
       }
     };
     void load();
-    const timer = window.setInterval(load, 2500);
     return () => {
       alive = false;
-      clearInterval(timer);
+      clearTimeout(timer);
     };
   }, [selected]);
   const run = async (fn: () => Promise<void>) => {
+    mutationEpoch.current += 1;
     setBusy(true);
     setError("");
     try {
@@ -123,6 +129,7 @@ export default function App() {
       setError((e as Error).message);
       return false;
     } finally {
+      mutationEpoch.current += 1;
       setBusy(false);
     }
   };
@@ -279,7 +286,7 @@ export default function App() {
             <ArrowUpRight size={15} />
           </button>
           <div className="sidebar-meta">
-            <span>{t("v0.6.1 · early release", "v0.6.1 · ранняя версия")}</span>
+            <span>{t("v0.6.2 · early release", "v0.6.2 · ранняя версия")}</span>
             <span>{t("Открытый код")}</span>
           </div>
         </div>

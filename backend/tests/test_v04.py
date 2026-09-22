@@ -130,6 +130,9 @@ def test_confirmed_overview_requires_current_manual_and_semantic_review(tmp_path
     with store.connect() as c:
         c.execute("UPDATE candidates SET status='confirmed' WHERE id=?", (cid,))
     store.continue_research(job, brief)
+    # A real criteria change invalidates earlier manual confirmation.
+    brief.context = "Updated public research context"
+    store.continue_research(job, brief)
     store.save_audit(cid, 2, review, "fixture-model")
     assert heading not in markdown(store.detail(job))
     with store.connect() as c:

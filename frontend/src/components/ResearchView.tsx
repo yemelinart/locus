@@ -7,6 +7,7 @@ import { t, getPreferences, locale } from "../i18n";
 import AnalysisPanel from "./AnalysisPanel";
 import ReportDialog from "./ReportDialog";
 import { useState } from "react";
+import useResearchClock, { clockTime } from "../useResearchClock";
 import {
   ArrowDownToLine,
   ArrowUpRight,
@@ -248,14 +249,13 @@ export default function ResearchView({
   const [tab, setTab] = useState(initialTab);
   const [reportOpen, setReportOpen] = useState(false);
   const [continueOpen, setContinueOpen] = useState(false);
+  const [refining, setRefining] = useState(false);
   const [filter, setFilter] = useState("active");
   const [note, setNote] = useState("");
   const running = ["running", "queued"].includes(job.status);
-  const elapsed =
-    job.active_seconds +
-    (job.status === "running"
-      ? Math.max(0, (Date.now() - Date.parse(job.updated_at)) / 1000)
-      : 0);
+  const elapsed = useResearchClock(job);
+  const needsAllowance =
+    job.status === "completed" || !!job.continuation?.blocked_by.length;
   const candidates = job.candidates.filter(
     (c) =>
       filter === "all" ||
@@ -278,6 +278,7 @@ export default function ResearchView({
       {continueOpen && (
         <ContinueDialog
           job={job}
+          refining={refining}
           pending={pending}
           close={() => setContinueOpen(false)}
           save={continueResearch}
@@ -313,7 +314,12 @@ export default function ResearchView({
           <button
             disabled={pending}
             className={`button ${running ? "secondary" : "primary"}`}
-            onClick={() => action(running ? "pause" : "start")}
+            onClick={() => {
+              if (!running && needsAllowance) {
+                setRefining(false);
+                setContinueOpen(true);
+              } else action(running ? "pause" : "start");
+            }}
           >
             {pending ? (
               <Loader2 size={16} className="spin" />
@@ -326,7 +332,9 @@ export default function ResearchView({
               ? t("Пауза")
               : job.status === "draft"
                 ? t("Начать поиск")
-                : t("Продолжить")}
+                : needsAllowance
+                  ? t("Continue search", "Продолжить поиск")
+                  : t("Продолжить")}
           </button>
         </div>
       </div>
@@ -343,11 +351,17 @@ export default function ResearchView({
             value: job.stats.candidates,
             icon: Users,
           },
-          { label: t("Время работы"), value: duration(elapsed), icon: Clock3 },
+          { label: t("Время работы"), value: clockTime(elapsed), icon: Clock3 },
         ].map((m) => (
           <div className="metric" key={m.label}>
             <m.icon size={17} />
-            <strong>{m.value}</strong>
+            <strong
+              className={m.icon === Clock3 ? "research-clock" : undefined}
+              role={m.icon === Clock3 ? "timer" : undefined}
+              aria-label={m.icon === Clock3 ? m.label : undefined}
+            >
+              {m.value}
+            </strong>
             <span>{m.label}</span>
           </div>
         ))}
@@ -682,7 +696,10 @@ export default function ResearchView({
             <button
               className="button secondary full"
               disabled={running || pending}
-              onClick={() => setContinueOpen(true)}
+              onClick={() => {
+                setRefining(true);
+                setContinueOpen(true);
+              }}
             >
               {t("Refine & continue", "Уточнить и продолжить")}
             </button>

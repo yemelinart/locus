@@ -217,5 +217,8 @@
   "Не удалось проверить модель Ollama. Выберите скачанную чат-модель и обновите список; генерация требует успешной проверки локальной модели.": "Cannot verify this Ollama model. Select a downloaded chat model and refresh; inference requires successful local model verification.",
   "Режимы LM Studio нельзя использовать с другим провайдером.": "LM Studio modes cannot be used with another provider",
   "Не удалось определить возможности модели на этом сервере. Стандартный локальный чат остаётся доступным.": "Model capability discovery is unavailable on this server. Standard local chat remains available.",
-  "Выбранный уровень thinking недоступен для этой модели. Обновите сведения о модели.": "This model does not expose the selected thinking level. Refresh capabilities."
+  "Выбранный уровень thinking недоступен для этой модели. Обновите сведения о модели.": "This model does not expose the selected thinking level. Refresh capabilities.",
+  "Лимиты поиска исчерпаны. Нажмите «Продолжить поиск», чтобы добавить время и объём работы.": "Search allowance exhausted. Use Continue search to add time and work before resuming.",
+  "Лимиты обновлены. Можно продолжить сохранённую очередь.": "Search allowance updated. Ready to continue the saved queue.",
+  "Поиск продлён с прежними условиями. Находки, оценки и незавершённые шаги сохранены.": "Search extended with the same criteria. Findings, reviews and pending work preserved."
 }

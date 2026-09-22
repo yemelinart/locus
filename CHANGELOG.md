@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.6.2 — 2026-09-22
+
+- Fixed Resume silently requeueing an exhausted search. Completed/blocked passes now open an explicit next-pass allowance dialog; the API rejects an exhausted direct start.
+- Continuing unchanged criteria preserves the revision, audits, manual decisions, queue and query/URL deduplication. Actual criteria changes still trigger reassessment.
+- Added a monotonic live clock with second-by-second display independent of activity writes and polling; prevented overlapping/stale poll responses across actions.
+- Prioritized missing-criterion probes and source-specific city checks. Later passes can explore unused spelling hypotheses without repeating completed queries.
+- Exposed the active AI/web role, saved queue and latest identity check, including missing or conflicting criteria. Optional narrative validation has its own visible stage.
+- Schema remains 5. No automatic search restart, no new model provider or inference mode, no change to match-acceptance gates.
+
 ## 0.6.1 — 2026-09-22
 
 - Fixed empty ddgs responses being treated as connection failures and prematurely pausing research.

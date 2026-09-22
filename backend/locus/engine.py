@@ -116,6 +116,7 @@ class Engine:
         settings = settings.model_copy(update={"response_language": brief.output_language})
         base_seconds = job["active_seconds"]
         began = time.monotonic()
+        self.store.begin_clock(job_id, base_seconds, began)
         task = None
         self.store.update(job_id, status="running", reason="", settings_snapshot=dump(settings.model_dump()))
         self.store.event(job_id, f"Поиск запущен. Локальная модель: {settings.model or 'не выбрана'}.")
@@ -479,6 +480,10 @@ class Engine:
                     )
                     # A re-run after cancellation cannot add a second copy of the same query.
                     identity_state = resolution(validated["identity_checks"], bool(validated["name_quote"]))
+                    if identity_state == "unresolved":
+                        # After this page's reviews, test missing relations before
+                        # spending another two reads on a generic namesake backlog.
+                        fetch_streak = 2
                     if (
                         row["status"] != "rejected"
                         and identity_state != "conflicting"
@@ -501,6 +506,7 @@ class Engine:
                                     job_id, "search", normalize(query.query).casefold(), query.model_dump()
                                 )
                     if validated["note"]:
+                        self.store.activity(job_id, "summarizing", value["name"], page["url"])
                         references = [value["facts"][i] for i in validated["note_facts"]]
                         verdict = await bounded(
                             model.complete(
@@ -616,4 +622,5 @@ class Engine:
             with suppress(asyncio.CancelledError):
                 await clock_task
             self.store.update(job_id, active_seconds=elapsed())
+            self.store.end_clock(job_id)
             self.store.sync_archive(job_id)

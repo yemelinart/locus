@@ -133,6 +133,12 @@ export type LinkDecision = {
   status: "confirmed" | "rejected" | "unreviewed";
 };
 export type Detail = Job & {
+  queue?: { search: number; fetch: number; analyze: number; review: number };
+  continuation?: {
+    blocked_by: string[];
+    exhausted: string[];
+    pending_steps: number;
+  };
   linkage?: {
     proposals: (LinkDecision & {
       from_source: string;

@@ -136,6 +136,8 @@ def test_link_decisions_cannot_override_boundaries(tmp_path, change):
     if change in {"revise", "exclude"}:
         if change == "exclude":
             brief.exclude_domains = ["work.example.org"]
+        else:
+            brief.context = "Updated public research context"
         s.continue_research(job, brief)
     if change == "running":
         s.update(job, status="running")
